@@ -1,0 +1,9 @@
+# Example environment variables for local development
+# Copy this file to .dev.vars and fill in your actual values
+# NEVER commit .dev.vars to Git!
+
+# Environment
+ENVIRONMENT=development
+
+# Cloudflare bindings are automatically handled by Wrangler
+# Add any additional secrets here when needed 
