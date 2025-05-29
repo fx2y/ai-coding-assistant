@@ -12,6 +12,7 @@ import {
   proxyHealthHandler, 
   proxySupportedServicesHandler 
 } from './handlers/proxy-handlers.js';
+import { echoHandler } from './handlers/debug-handlers.js';
 
 // Initialize Hono app with environment type
 const app = new Hono<{ Bindings: Env; Variables: { requestId: string } }>();
@@ -39,6 +40,9 @@ app.get('/', (c) => {
 app.post('/api/proxy/external', proxyExternalApiHandler);
 app.get('/api/proxy/health', proxyHealthHandler);
 app.get('/api/proxy/services', proxySupportedServicesHandler);
+
+// Debug endpoints (P0-E2-S2)
+app.post('/api/echo', echoHandler);
 
 // Fallback for unmatched routes
 app.notFound((c) => {

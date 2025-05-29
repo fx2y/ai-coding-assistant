@@ -124,6 +124,51 @@ Returns list of supported external services.
 }
 ```
 
+### Debug Endpoints
+
+#### POST /api/echo
+**Purpose:** Echo back any JSON payload - useful for testing client-to-worker communication.
+
+**Request:**
+- Method: `POST`
+- Content-Type: `application/json`
+- Body: Any valid JSON payload
+
+**Response (Success):**
+```json
+{
+  "success": true,
+  "data": <echoed_payload>,
+  "requestId": "req_1234567890_abcd"
+}
+```
+
+**Response (Error - Invalid JSON):**
+```json
+{
+  "success": false,
+  "error": {
+    "error": "InvalidInput",
+    "message": "Invalid JSON payload or processing error",
+    "details": "Unterminated string in JSON at position 32 (line 1 column 33)",
+    "requestId": "req_1234567890_abcd"
+  }
+}
+```
+
+**Example Usage:**
+```bash
+# Test with valid JSON
+curl -X POST http://localhost:8787/api/echo \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello World", "timestamp": "2023-10-27T10:00:00Z"}'
+
+# Test with invalid JSON (for error handling)
+curl -X POST http://localhost:8787/api/echo \
+  -H "Content-Type: application/json" \
+  -d '{"message": "unterminated string'
+```
+
 ## Security Features
 
 ### API Key Handling

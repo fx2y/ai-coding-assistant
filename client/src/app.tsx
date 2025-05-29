@@ -1,4 +1,5 @@
 import { ApiKeyManager } from './components/ApiKeyManager';
+import { EchoTest } from './components/EchoTest';
 import './app.css';
 
 export function App() {
@@ -12,6 +13,10 @@ export function App() {
       <main className="app-main">
         <section className="configuration-section">
           <ApiKeyManager />
+        </section>
+        
+        <section className="testing-section">
+          <EchoTest />
         </section>
         
         <section className="status-section">
