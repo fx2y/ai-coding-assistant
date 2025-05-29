@@ -1,0 +1,71 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# AGENT.MD_TERSE_PROMPT
+
+Project: Cloudflare_AI_CodingAssistant (Web-based, BYOK LLM/Embedding, Cloudflare Platform).
+Core Arch: Client (Pages/Preact) -> Workers (Hono/TS) -> R2 (code/chunks), KV (meta/config/pins/agent_state), Vectorize (embeddings). BYOK proxy worker for all external AI calls.
+RFCs: CORE-001 (Arch), UI-001 (Client), API-001 (Workers), IDX-001 (Index), MEM-001 (Memory), AGT-001 (Agent), SEC-001 (BYOKSec), CTX-001/003 (Context), MOD-001 (ModelRoute).
+
+Tech Stack:
+  - CF Workers: Latest runtime, Wrangler v3.x.
+  - Lang: TypeScript v5.x (strict).
+  - Frontend: Preact v10.x.
+  - Worker Routing: Hono v3.x.
+  - Key Libs: Zod (validation), diff-match-patch, tiktoken-rs (WASM), jszip.
+  - External APIs (BYOK): OpenAI, Anthropic, Cohere, Jina.
+
+Dir Structure (Key Paths):
+  - `client/src/components/`: Preact UI.
+  - `client/src/services/apiClient.ts`: Client API calls.
+  - `workers/src/index.ts`: Main Worker entry, Hono routes.
+  - `workers/src/handlers/`: Route handlers (`projectHandlers.ts`, `searchHandlers.ts`, etc.).
+  - `workers/src/services/`: Business logic (`indexingService.ts`, `retrievalService.ts`, `agentService.ts`, `toolExecutor.ts`, `contextBuilder.ts`).
+  - `workers/src/tools/`: Agent tools (`codeSearchTool.ts`, `generateEditTool.ts`).
+  - `workers/src/lib/`: Shared utils (`byokProxyClient.ts`, `kvStore.ts`, `r2Store.ts`, `vectorizeClient.ts`).
+  - `workers/src/types.ts`: Shared TS types.
+  - `workers/wrangler.toml`: Config.
+  - `docs/RFCs/`: All RFCs.
+  - `tests/unit/workers/`: Worker unit tests.
+
+Key Data Structs (`workers/src/types.ts`):
+  - `Project`: id, name, userId, r2BucketPath, kvPrefix.
+  - `CodeChunk`: id, projectId, filePath, r2ChunkPath, start/endLine, embeddingId.
+  - `AgentTurn`: role (user/assistant/tool_observation), content, toolCall, toolResult.
+  - API Payloads: Zod schemas (e.g., `VectorQuerySchema` for `/api/search/vector_query`).
+
+Dev Workflow:
+  - Git, GitHub. Branches: `main`, `develop`, `feature/SPEC_ID-desc`, `fix/ISSUE-desc`. PRs required.
+  - CI/CD: GitHub Actions (lint, test, deploy Pages/Workers on main/develop merge).
+  - Local Dev: `npm run dev` (root), `wrangler dev --local` (workers), `.dev.vars` for secrets.
+  - Testing: Vitest (unit/integration), Playwright (E2E future). Coverage >80% core.
+  - Lint/Format: ESLint, Prettier, Husky pre-commit.
+
+Coding Standards:
+  - TS strict. Avoid `any`.
+  - Naming: Files (kebab-case.ts/PascalCase.tsx), Vars/Funcs (camelCase), Types/Interfaces (PascalCase), Consts (UPPER_SNAKE_CASE).
+  - Errors: Custom error classes (`ApiError`). Consistent JSON error responses. Zod validation for inputs.
+  - Logging: `console.*` (structured JSON preferred). No sensitive data.
+  - APIs: RESTful, Hono routes. `/api/vX/...` for versioning.
+  - Comments: JSDoc for exported/complex. Inline for "why".
+  - Modularity: Single-responsibility services/utils.
+  - Secrets: `.dev.vars` (local), CF Dashboard/Wrangler secrets (deployed).
+  - Security: BYOK keys client-side/per-request to proxy. Input validation. Rate limit. Sanitize (if HTML render).
+
+API Patterns:
+  - Client->Worker: `fetch`, `application/json`. `apiClient.ts`.
+  - Worker->ExternalAI: Via `byokProxyClient.ts` to BYOK Proxy Worker (P0-E1-S2).
+  - Worker->CF_Services: `env` bindings, typed wrappers in `workers/src/lib/`.
+
+AI Contribution Tasks:
+  - New Worker EP: Zod schema -> Hono route (`index.ts`) -> handler (`handlers/`) -> service (`services/`) -> JSDoc/tests.
+  - New Agent Tool: File in `tools/` -> update `toolExecutor.ts` & prompt manifest -> tests.
+  - New Preact Comp: `.tsx` in `client/components/`.
+  - Modifying: Understand RFCs/specs. Use shared utils. Maintain style. Update tests/JSDoc.
+  - Testing: Unit tests for all logic.
+  - TS: Explicit types, no `any`. Pass `tsc --noEmit`, `eslint .`.
+  - RFC Refs: Comment `// Implements RFC-XXX-YYY`.
+
+Focus: Cloudflare ecosystem, BYOK, stateless Workers, explicit RFC adherence, DX, testability.
