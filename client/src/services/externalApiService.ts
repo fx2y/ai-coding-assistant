@@ -205,7 +205,7 @@ export async function getSupportedServices(): Promise<ExternalApiResponse<{ serv
 /**
  * Check proxy health
  */
-export async function checkProxyHealth(): Promise<ExternalApiResponse> {
+export async function checkProxyHealth(): Promise<ExternalApiResponse<{ status: string; timestamp?: string }>> {
   try {
     const response = await fetch(`${WORKER_BASE_URL}/api/proxy/health`);
     const result = await response.json();

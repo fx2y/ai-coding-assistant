@@ -1,0 +1,6 @@
+name = "ai-coding-assistant-client"
+compatibility_date = "2024-01-15"
+pages_build_output_dir = "dist"
+
+[env.production.vars]
+# Environment variables can be added here 

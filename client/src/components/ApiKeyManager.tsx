@@ -1,4 +1,3 @@
-import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import { saveApiKeys, getApiKeys, clearApiKeys, hasValidApiKeys } from '../services/apiKeyService';
 import './ApiKeyManager.css';
