@@ -565,6 +565,76 @@ export async function generateEmbeddingsForProjectChunks(
           }
         }
 
+        // P1-E2-S2: Insert embeddings into Vectorize in batch
+        try {
+          const { insertVectorsBatch } = await import('../lib/vectorizeClient.js');
+          
+          const vectorsToInsert = batch.map((chunk, index) => {
+            const embedding = embeddings[index];
+            if (!embedding) {
+              throw new Error(`Missing embedding for chunk ${chunk.metadata.id} at index ${index}`);
+            }
+            
+            return {
+              id: chunk.metadata.id,
+              values: embedding,
+              metadata: {
+                projectId: chunk.metadata.projectId,
+                chunkId: chunk.metadata.id,
+                originalFilePath: chunk.metadata.originalFilePath,
+                startLine: chunk.metadata.startLine
+              } as import('../types.js').VectorMetadata
+            };
+          });
+
+          const vectorizeResult = await insertVectorsBatch(env.VECTORIZE_INDEX, vectorsToInsert);
+          
+          console.log(`Successfully inserted ${vectorsToInsert.length} vectors into Vectorize for batch ${batchNumber}`, {
+            count: vectorizeResult.count
+          });
+
+          // Update chunk metadata to mark as indexed and remove temporary embedding
+          for (let j = 0; j < batch.length; j++) {
+            const chunk = batch[j];
+            
+            if (!chunk) {
+              console.error(`Missing chunk at index ${j}`);
+              continue;
+            }
+            
+            try {
+              const { tempEmbeddingVector, ...updatedMetadata } = chunk.metadata;
+
+              await saveChunkMetadata(env.METADATA_KV, updatedMetadata);
+              successfulEmbeddingCount++;
+              
+            } catch (kvError) {
+              const errorMessage = kvError instanceof Error ? kvError.message : 'Unknown error';
+              console.error(`Failed to update KV metadata for chunk ${chunk.metadata.id}:`, kvError);
+              errors.push({
+                chunkId: chunk.metadata.id,
+                filePath: chunk.metadata.originalFilePath,
+                error: `Failed to update KV metadata: ${errorMessage}`
+              });
+            }
+          }
+
+        } catch (vectorizeError) {
+          const errorMessage = vectorizeError instanceof Error ? vectorizeError.message : 'Unknown error';
+          console.error(`Failed to insert batch ${batchNumber} into Vectorize:`, vectorizeError);
+          
+          // Add errors for all chunks in this batch
+          for (const chunk of batch) {
+            if (chunk) {
+              errors.push({
+                chunkId: chunk.metadata.id,
+                filePath: chunk.metadata.originalFilePath,
+                error: `Vectorize insertion failed: ${errorMessage}`
+              });
+            }
+          }
+        }
+
         processedChunkCount += batch.length;
 
         // Add small delay between batches to be respectful to external APIs

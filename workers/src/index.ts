@@ -14,6 +14,7 @@ import {
 } from './handlers/proxy-handlers.js';
 import { echoHandler } from './handlers/debug-handlers.js';
 import { handleProjectUpload, handleProjectChunking, handleEmbeddingGeneration } from './handlers/projectHandlers.js';
+import { getVectorizeInfo, testVectorizeQuery } from './handlers/debugHandlers.js';
 
 // Initialize Hono app with environment type
 const app = new Hono<{ Bindings: Env; Variables: { requestId: string } }>();
@@ -54,6 +55,10 @@ app.post('/api/project/:projectId/generate_embeddings', handleEmbeddingGeneratio
 // Debug endpoints (P0-E2-S2)
 app.post('/api/echo', echoHandler);
 
+// Debug endpoints for Vectorize (P1-E2-S2)
+app.get('/api/debug/vectorize/info', getVectorizeInfo);
+app.post('/api/debug/vectorize/query', testVectorizeQuery);
+
 // Fallback for unmatched routes
 app.notFound((c) => {
   return c.json({
@@ -68,4 +73,4 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     return app.fetch(request, env, ctx);
   }
-};
+}; 

@@ -3,8 +3,8 @@
  * Implements RFC-IDX-001: Text chunking with semantic awareness
  */
 
+import { detectLanguageFromContent } from './languageDetection.js';
 import type { TextChunk, ChunkingConfig, SupportedLanguage } from '../types.js';
-import { detectLanguageFromContent, getLanguageCommentPatterns } from './languageDetection.js';
 
 /**
  * Default chunking configuration
@@ -66,9 +66,6 @@ function generateLanguageAwareChunks(
 ): TextChunk[] {
   const lines = content.split('\n');
   const chunks: TextChunk[] = [];
-  
-  // Get language-specific patterns
-  const commentPatterns = getLanguageCommentPatterns(language);
   
   let currentChunk: string[] = [];
   let currentStartLine = 1;

@@ -32,3 +32,8 @@ preview_bucket_name = "ai-assistant-code-uploads-preview"
 # [[vectorize]]
 # binding = "AI_ASSISTANT_VECTORIZE"
 # index_name = "ai-assistant-embeddings" 
+
+# Vectorize index for code embeddings (P1-E2-S2)
+[[vectorize]]
+binding = "VECTORIZE_INDEX"
+index_name = "ai-assistant-code-embeddings" 

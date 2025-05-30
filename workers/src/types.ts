@@ -13,6 +13,8 @@ export interface Env {
   // KV namespace for chunk metadata (P1-E1-S2)
   METADATA_KV: KVNamespace;
   // Vectorize bindings will be added here when needed
+  // Vectorize index for code embeddings (P1-E2-S2)
+  VECTORIZE_INDEX: VectorizeIndex;
   [key: string]: unknown;
 }
 
@@ -157,6 +159,14 @@ export interface ChunkMetadata {
   createdAt: string;
   // Temporary field for P1-E2-S1 verification (will be replaced by Vectorize storage in P1-E2-S2)
   tempEmbeddingVector?: number[];
+}
+
+// Vectorize metadata structure (P1-E2-S2)
+export interface VectorMetadata {
+  projectId: string;
+  chunkId: string;
+  originalFilePath: string;
+  startLine?: number;
 }
 
 export interface TextChunk {

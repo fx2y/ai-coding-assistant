@@ -12,7 +12,9 @@ import { requestIdMiddleware } from '../lib/error-handler.js';
 // Mock environment for testing
 const mockEnv: Env = {
   ENVIRONMENT: 'test',
-  CODE_UPLOADS_BUCKET: {} as R2Bucket
+  CODE_UPLOADS_BUCKET: {} as R2Bucket,
+  METADATA_KV: {} as KVNamespace,
+  VECTORIZE_INDEX: {} as VectorizeIndex
 };
 
 describe('Debug Handlers', () => {
