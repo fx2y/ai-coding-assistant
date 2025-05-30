@@ -13,7 +13,7 @@ import {
   proxySupportedServicesHandler
 } from './handlers/proxy-handlers.js';
 import { echoHandler } from './handlers/debug-handlers.js';
-import { handleProjectUpload } from './handlers/projectHandlers.js';
+import { handleProjectUpload, handleProjectChunking } from './handlers/projectHandlers.js';
 
 // Initialize Hono app with environment type
 const app = new Hono<{ Bindings: Env; Variables: { requestId: string } }>();
@@ -44,6 +44,9 @@ app.get('/api/proxy/services', proxySupportedServicesHandler);
 
 // Project endpoints (P1-E1-S1)
 app.post('/api/project/upload', handleProjectUpload);
+
+// Project chunking endpoint (P1-E1-S2)
+app.post('/api/project/:projectId/process_chunks', handleProjectChunking);
 
 // Debug endpoints (P0-E2-S2)
 app.post('/api/echo', echoHandler);

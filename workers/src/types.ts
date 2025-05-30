@@ -10,7 +10,9 @@ export interface Env {
   ENVIRONMENT: string;
   // R2 bucket for code uploads (P1-E1-S1)
   CODE_UPLOADS_BUCKET: R2Bucket;
-  // KV, Vectorize bindings will be added here when needed
+  // KV namespace for chunk metadata (P1-E1-S2)
+  METADATA_KV: KVNamespace;
+  // Vectorize bindings will be added here when needed
   [key: string]: unknown;
 }
 
@@ -141,3 +143,61 @@ export interface ApiResponse<T = unknown> {
   error?: ApiError;
   requestId?: string;
 }
+
+// Chunking types (P1-E1-S2)
+export interface ChunkMetadata {
+  id: string;
+  projectId: string;
+  originalFilePath: string;
+  r2ChunkPath: string;
+  startLine: number;
+  endLine: number;
+  charCount: number;
+  language?: string;
+  createdAt: string;
+}
+
+export interface TextChunk {
+  text: string;
+  startLine: number;
+  endLine: number;
+  language?: string;
+}
+
+export interface ChunkingConfig {
+  maxChunkSize: number; // Maximum characters per chunk
+  chunkOverlap: number; // Overlap characters between chunks
+  maxLinesPerChunk: number; // Maximum lines per chunk
+  preserveCodeBlocks: boolean; // Try to keep code blocks intact
+}
+
+export interface ChunkingResult {
+  chunkedFileCount: number;
+  totalChunksCreated: number;
+  errors: Array<{
+    filePath: string;
+    error: string;
+  }>;
+}
+
+// Language detection types
+export type SupportedLanguage = 
+  | 'javascript' 
+  | 'typescript' 
+  | 'python' 
+  | 'java' 
+  | 'cpp' 
+  | 'c' 
+  | 'csharp' 
+  | 'go' 
+  | 'rust' 
+  | 'php' 
+  | 'ruby' 
+  | 'markdown' 
+  | 'yaml' 
+  | 'json' 
+  | 'html' 
+  | 'css' 
+  | 'shell' 
+  | 'sql' 
+  | 'text';

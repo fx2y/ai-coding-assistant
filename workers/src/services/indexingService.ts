@@ -4,7 +4,9 @@
  */
 
 import JSZip from 'jszip';
-import type { ProcessZipResult, UploadedFile } from '../types.js';
+import type { ProcessZipResult, UploadedFile, ChunkingResult, ChunkMetadata, Env } from '../types.js';
+import { generateChunksForFile, validateChunk, DEFAULT_CHUNKING_CONFIG } from '../lib/textChunker.js';
+import { saveChunkMetadata, saveFileChunkIndex } from '../lib/kvStore.js';
 
 /**
  * Determines content type based on file extension
@@ -243,4 +245,143 @@ export async function processAndStoreZip(
  */
 export function generateProjectId(): string {
   return crypto.randomUUID();
+}
+
+/**
+ * Chunks all files in a project and stores chunks in R2 and metadata in KV
+ * Implements RFC-IDX-001: Parsing & Chunking step
+ */
+export async function chunkFilesInProject(
+  env: Env,
+  projectId: string
+): Promise<ChunkingResult> {
+  const errors: Array<{ filePath: string; error: string }> = [];
+  let chunkedFileCount = 0;
+  let totalChunksCreated = 0;
+
+  try {
+    console.log(`Starting chunking process for project ${projectId}`);
+
+    // List all original files for the project
+    const prefix = `projects/${projectId}/original/`;
+    const fileList = await env.CODE_UPLOADS_BUCKET.list({ prefix });
+
+    console.log(`Found ${fileList.objects.length} files to process for project ${projectId}`);
+
+    // Process each file
+    for (const r2Object of fileList.objects) {
+      const originalRelativePath = r2Object.key.substring(prefix.length);
+      
+      try {
+        console.log(`Processing file: ${originalRelativePath}`);
+
+        // Retrieve file content from R2
+        const fileObject = await env.CODE_UPLOADS_BUCKET.get(r2Object.key);
+        if (!fileObject) {
+          errors.push({
+            filePath: originalRelativePath,
+            error: 'File not found in R2'
+          });
+          continue;
+        }
+
+        const fileContentText = await fileObject.text();
+
+        // Generate chunks for the file
+        const chunks = await generateChunksForFile(
+          originalRelativePath,
+          fileContentText,
+          DEFAULT_CHUNKING_CONFIG
+        );
+
+        console.log(`Generated ${chunks.length} chunks for ${originalRelativePath}`);
+
+        // Store each chunk and its metadata
+        const chunkIds: string[] = [];
+        
+        for (const chunk of chunks) {
+          try {
+            // Validate chunk
+            const validatedChunk = validateChunk(chunk);
+            
+            // Generate unique chunk ID
+            const chunkId = crypto.randomUUID();
+            
+            // Store chunk text in R2
+            const chunkR2Key = `projects/${projectId}/chunks/${chunkId}.txt`;
+            await env.CODE_UPLOADS_BUCKET.put(chunkR2Key, validatedChunk.text, {
+              httpMetadata: {
+                contentType: 'text/plain'
+              },
+              customMetadata: {
+                projectId,
+                originalFilePath: originalRelativePath,
+                chunkId,
+                ...(validatedChunk.language && { language: validatedChunk.language })
+              }
+            });
+
+            // Create chunk metadata
+            const chunkMetadata: ChunkMetadata = {
+              id: chunkId,
+              projectId,
+              originalFilePath: originalRelativePath,
+              r2ChunkPath: chunkR2Key,
+              startLine: validatedChunk.startLine,
+              endLine: validatedChunk.endLine,
+              charCount: validatedChunk.text.length,
+              ...(validatedChunk.language && { language: validatedChunk.language }),
+              createdAt: new Date().toISOString()
+            };
+
+            // Store chunk metadata in KV
+            await saveChunkMetadata(env.METADATA_KV, chunkMetadata);
+            
+            chunkIds.push(chunkId);
+            totalChunksCreated++;
+
+          } catch (chunkError) {
+            const errorMessage = chunkError instanceof Error ? chunkError.message : 'Unknown chunk error';
+            console.error(`Failed to store chunk for ${originalRelativePath}:`, chunkError);
+            errors.push({
+              filePath: `${originalRelativePath} (chunk)`,
+              error: errorMessage
+            });
+          }
+        }
+
+        // Store file chunk index in KV
+        if (chunkIds.length > 0) {
+          await saveFileChunkIndex(env.METADATA_KV, projectId, originalRelativePath, chunkIds);
+          chunkedFileCount++;
+        }
+
+        console.log(`Successfully processed ${originalRelativePath}: ${chunkIds.length} chunks created`);
+
+      } catch (fileError) {
+        const errorMessage = fileError instanceof Error ? fileError.message : 'Unknown file error';
+        console.error(`Failed to process file ${originalRelativePath}:`, fileError);
+        errors.push({
+          filePath: originalRelativePath,
+          error: errorMessage
+        });
+      }
+    }
+
+    console.log(`Chunking complete for project ${projectId}: ${chunkedFileCount} files processed, ${totalChunksCreated} chunks created, ${errors.length} errors`);
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`Failed to chunk files for project ${projectId}:`, error);
+    errors.push({
+      filePath: 'PROJECT_CHUNKING',
+      error: `Failed to chunk project files: ${errorMessage}`
+    });
+  }
+
+  return {
+    chunkedFileCount,
+    totalChunksCreated,
+    errors
+  };
 }

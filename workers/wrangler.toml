@@ -16,11 +16,11 @@ vars = { ENVIRONMENT = "production" }
 name = "ai-coding-assistant-workers-staging"
 vars = { ENVIRONMENT = "staging" }
 
-# KV Namespaces (uncomment when needed)
-# [[kv_namespaces]]
-# binding = "AI_ASSISTANT_KV"
-# preview_id = "preview_kv_namespace_id"
-# id = "production_kv_namespace_id"
+# KV Namespaces
+[[kv_namespaces]]
+binding = "METADATA_KV"
+id = "283b5fd720b04d259f69f5ff532db89a"
+# preview_id = "preview_kv_namespace_id" # Optional: for local dev with wrangler dev --remote
 
 # R2 Buckets for code uploads (P1-E1-S1)
 [[r2_buckets]]

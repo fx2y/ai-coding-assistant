@@ -4,8 +4,8 @@
  */
 
 import type { Context } from 'hono';
-import type { Env, ProjectUploadResponse } from '../types.js';
-import { processAndStoreZip, generateProjectId } from '../services/indexingService.js';
+import type { Env, ProjectUploadResponse, ChunkingResult } from '../types.js';
+import { processAndStoreZip, generateProjectId, chunkFilesInProject } from '../services/indexingService.js';
 
 /**
  * Handles project code upload via ZIP file
@@ -92,6 +92,58 @@ export async function handleProjectUpload(c: Context<{ Bindings: Env }>): Promis
       error: 'InternalServerError',
       message: 'Failed to process project upload',
       code: 'UPLOAD_PROCESSING_FAILED',
+      details: errorMessage
+    }, 500);
+  }
+}
+
+/**
+ * Handles project file chunking
+ * POST /api/project/:projectId/process_chunks
+ */
+export async function handleProjectChunking(c: Context<{ Bindings: Env }>): Promise<Response> {
+  try {
+    // Extract project ID from URL parameters
+    const projectId = c.req.param('projectId');
+
+    if (!projectId) {
+      return c.json({
+        error: 'BadRequest',
+        message: 'Missing projectId parameter',
+        code: 'MISSING_PROJECT_ID'
+      }, 400);
+    }
+
+    // Validate project ID format (should be UUID)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(projectId)) {
+      return c.json({
+        error: 'BadRequest',
+        message: 'Invalid projectId format. Expected UUID.',
+        code: 'INVALID_PROJECT_ID'
+      }, 400);
+    }
+
+    console.log(`Starting chunking process for project ${projectId}`);
+
+    // Process chunks for the project
+    const result = await chunkFilesInProject(c.env, projectId);
+
+    // Log completion
+    console.log(`Chunking complete for project ${projectId}: ${result.chunkedFileCount} files processed, ${result.totalChunksCreated} chunks created, ${result.errors.length} errors`);
+
+    // Return success response (200 even if some files failed)
+    return c.json(result, 200);
+
+  } catch (error) {
+    console.error('Project chunking failed:', error);
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    return c.json({
+      error: 'InternalServerError',
+      message: 'Failed to process project chunking',
+      code: 'CHUNKING_PROCESSING_FAILED',
       details: errorMessage
     }, 500);
   }
