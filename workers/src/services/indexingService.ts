@@ -385,3 +385,242 @@ export async function chunkFilesInProject(
     errors
   };
 }
+
+/**
+ * Generates embeddings for all chunks in a project
+ * Implements RFC-IDX-001: Embedding generation step (P1-E2-S1)
+ */
+export async function generateEmbeddingsForProjectChunks(
+  env: Env,
+  projectId: string,
+  userEmbeddingApiKey: string,
+  embeddingModelConfig: import('../types.js').EmbeddingModelConfig
+): Promise<import('../types.js').EmbeddingGenerationResult> {
+  const startTime = Date.now();
+  const errors: Array<{ chunkId: string; filePath: string; error: string }> = [];
+  let processedChunkCount = 0;
+  let successfulEmbeddingCount = 0;
+
+  // Import the BYOK proxy client
+  const { getEmbeddingsViaProxy, isEmbeddingError } = await import('../lib/byokProxyClient.js');
+  const { saveChunkMetadata } = await import('../lib/kvStore.js');
+
+  try {
+    console.log(`Starting embedding generation for project ${projectId}`, {
+      service: embeddingModelConfig.service,
+      model: embeddingModelConfig.modelName,
+      batchSize: embeddingModelConfig.batchSize
+    });
+
+    // Get proxy URL from environment or use default for local development
+    const proxyUrl = (env.PROXY_WORKER_URL as string) || 'http://127.0.0.1:8787/api/proxy/external';
+
+    // List all chunk metadata for the project
+    const prefix = `project:${projectId}:chunk:`;
+    const chunkMetadataKeys = await env.METADATA_KV.list({ prefix });
+
+    console.log(`Found ${chunkMetadataKeys.keys.length} chunks to process for project ${projectId}`);
+
+    // Process chunks individually or in batches
+    const batchSize = embeddingModelConfig.batchSize || 20;
+    const chunks: Array<{ metadata: import('../types.js').ChunkMetadata; text: string }> = [];
+
+    // First, collect all chunk data
+    for (const kvKey of chunkMetadataKeys.keys) {
+      try {
+        // Get chunk metadata from KV
+        const metadataJson = await env.METADATA_KV.get(kvKey.name);
+        if (!metadataJson) {
+          console.warn(`No metadata found for key: ${kvKey.name}`);
+          continue;
+        }
+
+        const chunkMetadata = JSON.parse(metadataJson) as import('../types.js').ChunkMetadata;
+
+        // Skip if already has embedding (idempotency)
+        if (chunkMetadata.tempEmbeddingVector && chunkMetadata.tempEmbeddingVector.length > 0) {
+          console.log(`Skipping chunk ${chunkMetadata.id} - already has embedding`);
+          processedChunkCount++;
+          successfulEmbeddingCount++;
+          continue;
+        }
+
+        // Get chunk text from R2
+        const chunkTextR2Object = await env.CODE_UPLOADS_BUCKET.get(chunkMetadata.r2ChunkPath);
+        if (!chunkTextR2Object) {
+          errors.push({
+            chunkId: chunkMetadata.id,
+            filePath: chunkMetadata.originalFilePath,
+            error: `Chunk text not found in R2: ${chunkMetadata.r2ChunkPath}`
+          });
+          continue;
+        }
+
+        const chunkText = await chunkTextR2Object.text();
+        chunks.push({ metadata: chunkMetadata, text: chunkText });
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`Failed to load chunk data for ${kvKey.name}:`, error);
+        errors.push({
+          chunkId: kvKey.name.split(':').pop() || 'unknown',
+          filePath: 'unknown',
+          error: `Failed to load chunk data: ${errorMessage}`
+        });
+      }
+    }
+
+    // Process chunks in batches
+    for (let i = 0; i < chunks.length; i += batchSize) {
+      const batch = chunks.slice(i, i + batchSize);
+      const batchTexts = batch.map(chunk => chunk.text);
+      const batchNumber = Math.floor(i / batchSize) + 1;
+
+      console.log(`Processing batch ${batchNumber}/${Math.ceil(chunks.length / batchSize)} with ${batch.length} chunks`);
+
+      try {
+        // Prepare embedding payload
+        const embeddingPayload = {
+          input: batchTexts,
+          ...(embeddingModelConfig.modelName && { model: embeddingModelConfig.modelName }),
+          ...(embeddingModelConfig.dimensions && { dimensions: embeddingModelConfig.dimensions })
+        };
+
+        // Call BYOK proxy for embeddings
+        const embeddingResult = await getEmbeddingsViaProxy(
+          fetch,
+          embeddingModelConfig.service,
+          userEmbeddingApiKey,
+          embeddingPayload,
+          proxyUrl
+        );
+
+        if (isEmbeddingError(embeddingResult)) {
+          const errorMsg = `Batch ${batchNumber} failed: ${embeddingResult.error.message}`;
+          console.error(errorMsg, embeddingResult.error);
+          
+          // Add errors for all chunks in this batch
+          for (const chunk of batch) {
+            errors.push({
+              chunkId: chunk.metadata.id,
+              filePath: chunk.metadata.originalFilePath,
+              error: errorMsg
+            });
+          }
+          processedChunkCount += batch.length;
+          continue;
+        }
+
+        // Process successful embeddings
+        const embeddings = embeddingResult.data
+          .sort((a, b) => a.index - b.index) // Ensure correct order
+          .map(item => item.embedding);
+
+        if (embeddings.length !== batch.length) {
+          const errorMsg = `Embedding count mismatch: expected ${batch.length}, got ${embeddings.length}`;
+          console.error(errorMsg);
+          
+          for (const chunk of batch) {
+            errors.push({
+              chunkId: chunk.metadata.id,
+              filePath: chunk.metadata.originalFilePath,
+              error: errorMsg
+            });
+          }
+          processedChunkCount += batch.length;
+          continue;
+        }
+
+        // Store embeddings in chunk metadata (temporarily for P1-E2-S1)
+        for (let j = 0; j < batch.length; j++) {
+          const chunk = batch[j];
+          const embedding = embeddings[j];
+
+          if (!chunk || !embedding) {
+            console.error(`Missing chunk or embedding at index ${j}`);
+            continue;
+          }
+
+          try {
+            // Update chunk metadata with embedding
+            const updatedMetadata: import('../types.js').ChunkMetadata = {
+              ...chunk.metadata,
+              tempEmbeddingVector: embedding
+            };
+
+            // Save updated metadata to KV
+            await saveChunkMetadata(env.METADATA_KV, updatedMetadata);
+            
+            successfulEmbeddingCount++;
+            console.log(`Successfully generated embedding for chunk ${chunk.metadata.id} (${embedding.length} dimensions)`);
+
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.error(`Failed to save embedding for chunk ${chunk.metadata.id}:`, error);
+            errors.push({
+              chunkId: chunk.metadata.id,
+              filePath: chunk.metadata.originalFilePath,
+              error: `Failed to save embedding: ${errorMessage}`
+            });
+          }
+        }
+
+        processedChunkCount += batch.length;
+
+        // Add small delay between batches to be respectful to external APIs
+        if (i + batchSize < chunks.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`Failed to process batch ${batchNumber}:`, error);
+        
+        for (const chunk of batch) {
+          errors.push({
+            chunkId: chunk.metadata.id,
+            filePath: chunk.metadata.originalFilePath,
+            error: `Batch processing failed: ${errorMessage}`
+          });
+        }
+        processedChunkCount += batch.length;
+      }
+    }
+
+    const totalProcessingTimeMs = Date.now() - startTime;
+
+    console.log(`Embedding generation complete for project ${projectId}`, {
+      processedChunkCount,
+      successfulEmbeddingCount,
+      errorCount: errors.length,
+      totalProcessingTimeMs
+    });
+
+    return {
+      processedChunkCount,
+      successfulEmbeddingCount,
+      errors,
+      totalProcessingTimeMs
+    };
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`Failed to generate embeddings for project ${projectId}:`, error);
+    
+    const totalProcessingTimeMs = Date.now() - startTime;
+    
+    return {
+      processedChunkCount,
+      successfulEmbeddingCount,
+      errors: [
+        ...errors,
+        {
+          chunkId: 'PROJECT_EMBEDDING_GENERATION',
+          filePath: 'PROJECT_LEVEL',
+          error: `Failed to generate embeddings: ${errorMessage}`
+        }
+      ],
+      totalProcessingTimeMs
+    };
+  }
+}

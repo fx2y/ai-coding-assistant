@@ -155,6 +155,8 @@ export interface ChunkMetadata {
   charCount: number;
   language?: string;
   createdAt: string;
+  // Temporary field for P1-E2-S1 verification (will be replaced by Vectorize storage in P1-E2-S2)
+  tempEmbeddingVector?: number[];
 }
 
 export interface TextChunk {
@@ -201,3 +203,39 @@ export type SupportedLanguage =
   | 'shell' 
   | 'sql' 
   | 'text';
+
+// Embedding generation types (P1-E2-S1)
+export interface EmbeddingModelConfig {
+  service: SupportedExternalService; // e.g., 'openai_embedding', 'jina_embedding'
+  modelName?: string | undefined; // e.g., 'text-embedding-ada-002', 'jina-embeddings-v2-base-en'
+  dimensions?: number | undefined; // Optional dimensions for some models
+  batchSize?: number | undefined; // Batch size for processing multiple chunks
+}
+
+export interface EmbeddingGenerationResult {
+  processedChunkCount: number;
+  successfulEmbeddingCount: number;
+  errors: Array<{
+    chunkId: string;
+    filePath: string;
+    error: string;
+  }>;
+  totalProcessingTimeMs: number;
+}
+
+// Zod schema for embedding generation request validation
+export const EmbeddingGenerationRequestSchema = z.object({
+  userEmbeddingApiKey: z.string().min(1, 'Embedding API key is required'),
+  embeddingModelConfig: z.object({
+    service: z.enum([
+      'openai_embedding',
+      'jina_embedding',
+      'cohere_embed'
+    ]),
+    modelName: z.string().optional(),
+    dimensions: z.number().int().positive().optional(),
+    batchSize: z.number().int().min(1).max(100).optional().default(20)
+  })
+});
+
+export type EmbeddingGenerationRequest = z.infer<typeof EmbeddingGenerationRequestSchema>;

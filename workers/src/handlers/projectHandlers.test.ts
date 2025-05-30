@@ -6,6 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleProjectUpload } from './projectHandlers.js';
 import * as indexingService from '../services/indexingService.js';
+import type { Env } from '../types.js';
 
 // Mock the indexing service
 vi.mock('../services/indexingService.js', () => ({
@@ -188,5 +189,129 @@ describe('handleProjectUpload', () => {
       uploaded_file_paths: ['src/main.js'],
       errors: [{ path: 'src/broken.js', error: 'Failed to upload to R2' }]
     }, 200);
+  });
+});
+
+describe('handleEmbeddingGeneration', () => {
+  const mockEnv = {
+    ENVIRONMENT: 'test',
+    CODE_UPLOADS_BUCKET: {
+      get: vi.fn()
+    },
+    METADATA_KV: {
+      list: vi.fn(),
+      get: vi.fn(),
+      put: vi.fn()
+    },
+    PROXY_WORKER_URL: 'http://localhost:8787/api/proxy/external'
+  } as unknown as Env;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    
+    // Mock the embedding generation service
+    vi.doMock('../services/indexingService.js', () => ({
+      generateEmbeddingsForProjectChunks: vi.fn()
+    }));
+  });
+
+  it('should handle valid embedding generation request', async () => {
+    const projectId = '123e4567-e89b-12d3-a456-426614174000';
+    const requestBody = {
+      userEmbeddingApiKey: 'test-api-key',
+      embeddingModelConfig: {
+        service: 'openai_embedding',
+        modelName: 'text-embedding-ada-002',
+        batchSize: 20
+      }
+    };
+
+    const mockResult = {
+      processedChunkCount: 5,
+      successfulEmbeddingCount: 5,
+      errors: [],
+      totalProcessingTimeMs: 1000
+    };
+
+    // Mock the service
+    const indexingService = await import('../services/indexingService.js');
+    vi.mocked(indexingService.generateEmbeddingsForProjectChunks).mockResolvedValue(mockResult);
+
+    // Create mock context
+    const mockContext = {
+      req: {
+        param: vi.fn().mockReturnValue(projectId),
+        json: vi.fn().mockResolvedValue(requestBody)
+      },
+      json: vi.fn().mockReturnValue(new Response()),
+      env: mockEnv
+    };
+
+    const { handleEmbeddingGeneration } = await import('./projectHandlers.js');
+    await handleEmbeddingGeneration(mockContext as any);
+
+    expect(mockContext.req.param).toHaveBeenCalledWith('projectId');
+    expect(indexingService.generateEmbeddingsForProjectChunks).toHaveBeenCalledWith(
+      mockEnv,
+      projectId,
+      'test-api-key',
+      requestBody.embeddingModelConfig
+    );
+    expect(mockContext.json).toHaveBeenCalledWith(mockResult, 200);
+  });
+
+  it('should reject invalid project ID format', async () => {
+    const invalidProjectId = 'invalid-id';
+    
+    const mockContext = {
+      req: {
+        param: vi.fn().mockReturnValue(invalidProjectId)
+      },
+      json: vi.fn().mockReturnValue(new Response()),
+      env: mockEnv
+    };
+
+    const { handleEmbeddingGeneration } = await import('./projectHandlers.js');
+    await handleEmbeddingGeneration(mockContext as any);
+
+    expect(mockContext.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: 'BadRequest',
+        message: 'Invalid projectId format. Expected UUID.',
+        code: 'INVALID_PROJECT_ID'
+      }),
+      400
+    );
+  });
+
+  it('should reject invalid request body', async () => {
+    const projectId = '123e4567-e89b-12d3-a456-426614174000';
+    const invalidRequestBody = {
+      userEmbeddingApiKey: '', // Invalid: empty string
+      embeddingModelConfig: {
+        service: 'invalid_service' // Invalid service
+      }
+    };
+
+    const mockContext = {
+      req: {
+        param: vi.fn().mockReturnValue(projectId),
+        json: vi.fn().mockResolvedValue(invalidRequestBody)
+      },
+      json: vi.fn().mockReturnValue(new Response()),
+      env: mockEnv
+    };
+
+    const { handleEmbeddingGeneration } = await import('./projectHandlers.js');
+    await handleEmbeddingGeneration(mockContext as any);
+
+    expect(mockContext.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: 'BadRequest',
+        message: 'Invalid request format',
+        code: 'INVALID_REQUEST_FORMAT'
+      }),
+      400
+    );
   });
 });

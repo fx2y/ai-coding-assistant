@@ -4,7 +4,7 @@
  */
 
 import type { Context } from 'hono';
-import type { Env, ProjectUploadResponse, ChunkingResult } from '../types.js';
+import type { Env, ProjectUploadResponse } from '../types.js';
 import { processAndStoreZip, generateProjectId, chunkFilesInProject } from '../services/indexingService.js';
 
 /**
@@ -144,6 +144,91 @@ export async function handleProjectChunking(c: Context<{ Bindings: Env }>): Prom
       error: 'InternalServerError',
       message: 'Failed to process project chunking',
       code: 'CHUNKING_PROCESSING_FAILED',
+      details: errorMessage
+    }, 500);
+  }
+}
+
+/**
+ * Handles project embedding generation
+ * POST /api/project/:projectId/generate_embeddings
+ * Implements RFC-IDX-001: Embedding generation step (P1-E2-S1)
+ */
+export async function handleEmbeddingGeneration(c: Context<{ Bindings: Env }>): Promise<Response> {
+  try {
+    // Extract project ID from URL parameters
+    const projectId = c.req.param('projectId');
+
+    if (!projectId) {
+      return c.json({
+        error: 'BadRequest',
+        message: 'Missing projectId parameter',
+        code: 'MISSING_PROJECT_ID'
+      }, 400);
+    }
+
+    // Validate project ID format (should be UUID)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(projectId)) {
+      return c.json({
+        error: 'BadRequest',
+        message: 'Invalid projectId format. Expected UUID.',
+        code: 'INVALID_PROJECT_ID'
+      }, 400);
+    }
+
+    // Parse and validate request body
+    const body = await c.req.json();
+    const { EmbeddingGenerationRequestSchema } = await import('../types.js');
+    const validationResult = EmbeddingGenerationRequestSchema.safeParse(body);
+
+    if (!validationResult.success) {
+      return c.json({
+        error: 'BadRequest',
+        message: 'Invalid request format',
+        code: 'INVALID_REQUEST_FORMAT',
+        details: validationResult.error.flatten()
+      }, 400);
+    }
+
+    const { userEmbeddingApiKey, embeddingModelConfig } = validationResult.data;
+
+    console.log(`Starting embedding generation for project ${projectId}`, {
+      service: embeddingModelConfig.service,
+      model: embeddingModelConfig.modelName,
+      batchSize: embeddingModelConfig.batchSize
+    });
+
+    // Import and call the embedding generation service
+    const { generateEmbeddingsForProjectChunks } = await import('../services/indexingService.js');
+    
+    const result = await generateEmbeddingsForProjectChunks(
+      c.env,
+      projectId,
+      userEmbeddingApiKey,
+      embeddingModelConfig
+    );
+
+    // Log completion
+    console.log(`Embedding generation complete for project ${projectId}`, {
+      processedChunkCount: result.processedChunkCount,
+      successfulEmbeddingCount: result.successfulEmbeddingCount,
+      errorCount: result.errors.length,
+      totalProcessingTimeMs: result.totalProcessingTimeMs
+    });
+
+    // Return success response (200 even if some embeddings failed)
+    return c.json(result, 200);
+
+  } catch (error) {
+    console.error('Embedding generation failed:', error);
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    return c.json({
+      error: 'InternalServerError',
+      message: 'Failed to process embedding generation',
+      code: 'EMBEDDING_GENERATION_FAILED',
       details: errorMessage
     }, 500);
   }
