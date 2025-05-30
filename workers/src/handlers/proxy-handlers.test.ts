@@ -14,7 +14,7 @@ const mockFetch = vi.fn();
 // Mock console methods
 (globalThis as any).console = {
   info: vi.fn(),
-  warn: vi.fn(), 
+  warn: vi.fn(),
   error: vi.fn(),
   log: vi.fn()
 };
@@ -316,4 +316,4 @@ describe('proxyExternalApiHandler', () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
   });
-}); 
+});

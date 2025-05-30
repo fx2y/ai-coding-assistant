@@ -19,10 +19,10 @@ export const EXTERNAL_SERVICE_CONFIGS: Record<SupportedExternalService, External
       'Content-Type': 'application/json'
     }
   },
-  
+
   openai_embedding: {
     baseUrl: 'https://api.openai.com/v1/embeddings',
-    authHeader: 'Authorization', 
+    authHeader: 'Authorization',
     authPrefix: 'Bearer ',
     defaultHeaders: {
       'Content-Type': 'application/json'
@@ -89,7 +89,7 @@ export function buildExternalHeaders(
   additionalHeaders?: Record<string, string>
 ): Record<string, string> {
   const config = getServiceConfig(service);
-  
+
   const headers: Record<string, string> = {
     ...config.defaultHeaders,
     ...additionalHeaders
@@ -108,4 +108,4 @@ export function buildExternalHeaders(
  */
 export function validateExternalService(service: string): service is SupportedExternalService {
   return service in EXTERNAL_SERVICE_CONFIGS;
-} 
+}

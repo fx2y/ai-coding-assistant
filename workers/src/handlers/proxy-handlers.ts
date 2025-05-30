@@ -5,33 +5,33 @@
 
 import type { Context } from 'hono';
 import { ExternalApiProxyRequestSchema } from '../types.js';
-import { 
-  ValidationError, 
-  ExternalServiceError, 
-  createSuccessResponse, 
-  createErrorResponse 
+import {
+  ValidationError,
+  ExternalServiceError,
+  createSuccessResponse,
+  createErrorResponse
 } from '../lib/error-handler.js';
-import { 
-  getServiceConfig, 
-  buildExternalHeaders, 
-  validateExternalService 
+import {
+  getServiceConfig,
+  buildExternalHeaders,
+  validateExternalService
 } from '../lib/external-service-configs.js';
 
 /**
  * Handler for POST /api/proxy/external
  * Proxies requests to external AI services using user-provided API keys
- * 
+ *
  * @param c - Hono context
  * @returns Response from external service or error response
  */
 export async function proxyExternalApiHandler(c: Context) {
   const requestId = c.get('requestId');
-  
+
   try {
     // Parse and validate request body
     const body = await c.req.json();
     const validationResult = ExternalApiProxyRequestSchema.safeParse(body);
-    
+
     if (!validationResult.success) {
       throw new ValidationError(
         'Invalid request format',
@@ -48,10 +48,10 @@ export async function proxyExternalApiHandler(c: Context) {
 
     // Get service configuration
     const serviceConfig = getServiceConfig(target_service);
-    
+
     // Build headers for external request
     const headers = buildExternalHeaders(target_service, api_key);
-    
+
     // Log request (without sensitive data)
     console.info('External API proxy request', {
       requestId,
@@ -97,7 +97,7 @@ export async function proxyExternalApiHandler(c: Context) {
 
     // Parse successful response
     const responseData = await externalResponse.json();
-    
+
     console.info('External API proxy success', {
       requestId,
       targetService: target_service,
@@ -135,7 +135,7 @@ export async function proxyExternalApiHandler(c: Context) {
  */
 export async function proxyHealthHandler(c: Context) {
   const requestId = c.get('requestId');
-  
+
   return createSuccessResponse(
     {
       status: 'healthy',
@@ -153,11 +153,11 @@ export async function proxyHealthHandler(c: Context) {
  */
 export async function proxySupportedServicesHandler(c: Context) {
   const requestId = c.get('requestId');
-  
+
   // Get list of supported services without exposing internal configuration
   const supportedServices = [
     'openai_chat',
-    'openai_embedding', 
+    'openai_embedding',
     'anthropic_claude',
     'jina_embedding',
     'cohere_generate',
@@ -172,4 +172,4 @@ export async function proxySupportedServicesHandler(c: Context) {
     200,
     requestId
   );
-} 
+}

@@ -3,15 +3,16 @@
  * Tests RFC-API-001 echo endpoint implementation
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
-import type { Env, ApiResponse, ApiError } from '../types.js';
+import type { Env, ApiResponse } from '../types.js';
 import { echoHandler } from './debug-handlers.js';
 import { requestIdMiddleware } from '../lib/error-handler.js';
 
 // Mock environment for testing
 const mockEnv: Env = {
-  ENVIRONMENT: 'test'
+  ENVIRONMENT: 'test',
+  CODE_UPLOADS_BUCKET: {} as R2Bucket
 };
 
 describe('Debug Handlers', () => {
@@ -26,7 +27,7 @@ describe('Debug Handlers', () => {
   describe('POST /api/echo', () => {
     it('should echo back a simple JSON object', async () => {
       const testPayload = { message: 'Hello, World!', timestamp: '2023-10-27T10:00:00Z' };
-      
+
       const req = new Request('http://localhost:8787/api/echo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -58,7 +59,7 @@ describe('Debug Handlers', () => {
           timestamp: new Date().toISOString()
         }
       };
-      
+
       const req = new Request('http://localhost:8787/api/echo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -79,7 +80,7 @@ describe('Debug Handlers', () => {
         { id: 2, name: 'Item 2' },
         { id: 3, name: 'Item 3' }
       ];
-      
+
       const req = new Request('http://localhost:8787/api/echo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -120,7 +121,7 @@ describe('Debug Handlers', () => {
 
     it('should handle empty object', async () => {
       const testPayload = {};
-      
+
       const req = new Request('http://localhost:8787/api/echo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -186,7 +187,7 @@ describe('Debug Handlers', () => {
 
     it('should include requestId in successful response', async () => {
       const testPayload = { test: 'data' };
-      
+
       const req = new Request('http://localhost:8787/api/echo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -201,4 +202,4 @@ describe('Debug Handlers', () => {
       expect(body.requestId!.length).toBeGreaterThan(0);
     });
   });
-}); 
+});

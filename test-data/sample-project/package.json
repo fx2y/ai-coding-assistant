@@ -1,0 +1,17 @@
+{
+  "name": "sample-project",
+  "version": "1.0.0",
+  "description": "A sample project for testing AI Coding Assistant upload functionality",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "sample",
+    "javascript",
+    "testing"
+  ],
+  "author": "AI Coding Assistant",
+  "license": "MIT"
+} 

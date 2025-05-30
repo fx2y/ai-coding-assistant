@@ -22,11 +22,11 @@ vars = { ENVIRONMENT = "staging" }
 # preview_id = "preview_kv_namespace_id"
 # id = "production_kv_namespace_id"
 
-# R2 Buckets (uncomment when needed)
-# [[r2_buckets]]
-# binding = "AI_ASSISTANT_R2"
-# bucket_name = "ai-assistant-storage"
-# preview_bucket_name = "ai-assistant-storage-preview"
+# R2 Buckets for code uploads (P1-E1-S1)
+[[r2_buckets]]
+binding = "CODE_UPLOADS_BUCKET"
+bucket_name = "ai-assistant-code-uploads"
+preview_bucket_name = "ai-assistant-code-uploads-preview"
 
 # Vectorize (uncomment when needed)
 # [[vectorize]]

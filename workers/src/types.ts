@@ -8,8 +8,10 @@ import { z } from 'zod';
 // Environment bindings for Cloudflare Workers
 export interface Env {
   ENVIRONMENT: string;
-  // KV, R2, Vectorize bindings will be added here when needed
-  [key: string]: any;
+  // R2 bucket for code uploads (P1-E1-S1)
+  CODE_UPLOADS_BUCKET: R2Bucket;
+  // KV, Vectorize bindings will be added here when needed
+  [key: string]: unknown;
 }
 
 // API Error structure for consistent error responses
@@ -66,7 +68,7 @@ export interface ToolResult {
 }
 
 // External API Proxy types (RFC-SEC-001, P0-E1-S2)
-export type SupportedExternalService = 
+export type SupportedExternalService =
   | 'openai_chat'
   | 'openai_embedding'
   | 'anthropic_claude'
@@ -78,7 +80,7 @@ export type SupportedExternalService =
 export const ExternalApiProxyRequestSchema = z.object({
   target_service: z.enum([
     'openai_chat',
-    'openai_embedding', 
+    'openai_embedding',
     'anthropic_claude',
     'jina_embedding',
     'cohere_generate',
@@ -108,10 +110,34 @@ export const VectorQuerySchema = z.object({
 
 export type VectorQuery = z.infer<typeof VectorQuerySchema>;
 
+// Project upload types (P1-E1-S1)
+export interface ProjectUploadResponse {
+  project_id: string;
+  uploaded_files_count: number;
+  uploaded_file_paths: string[];
+  errors: Array<{
+    path: string;
+    error: string;
+  }>;
+}
+
+export interface UploadedFile {
+  path: string;
+  r2Key: string;
+}
+
+export interface ProcessZipResult {
+  uploadedFiles: UploadedFile[];
+  errors: Array<{
+    path: string;
+    error: string;
+  }>;
+}
+
 // Common API response wrapper
 export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: ApiError;
   requestId?: string;
-} 
+}

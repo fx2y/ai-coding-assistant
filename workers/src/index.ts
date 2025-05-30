@@ -7,12 +7,13 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { Env } from './types.js';
 import { errorHandler, requestIdMiddleware } from './lib/error-handler.js';
-import { 
-  proxyExternalApiHandler, 
-  proxyHealthHandler, 
-  proxySupportedServicesHandler 
+import {
+  proxyExternalApiHandler,
+  proxyHealthHandler,
+  proxySupportedServicesHandler
 } from './handlers/proxy-handlers.js';
 import { echoHandler } from './handlers/debug-handlers.js';
+import { handleProjectUpload } from './handlers/projectHandlers.js';
 
 // Initialize Hono app with environment type
 const app = new Hono<{ Bindings: Env; Variables: { requestId: string } }>();
@@ -41,6 +42,9 @@ app.post('/api/proxy/external', proxyExternalApiHandler);
 app.get('/api/proxy/health', proxyHealthHandler);
 app.get('/api/proxy/services', proxySupportedServicesHandler);
 
+// Project endpoints (P1-E1-S1)
+app.post('/api/project/upload', handleProjectUpload);
+
 // Debug endpoints (P0-E2-S2)
 app.post('/api/echo', echoHandler);
 
@@ -58,4 +62,4 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     return app.fetch(request, env, ctx);
   }
-}; 
+};

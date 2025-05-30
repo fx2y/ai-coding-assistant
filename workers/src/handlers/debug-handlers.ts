@@ -17,7 +17,7 @@ export const EchoRequestSchema = z.unknown(); // Accepts any JSON
 export async function echoHandler(c: Context<{ Bindings: Env; Variables: { requestId: string } }>): Promise<Response> {
   try {
     const body = await c.req.json();
-    
+
     // Return the exact same payload that was received
     return c.json({
       success: true,
@@ -36,4 +36,4 @@ export async function echoHandler(c: Context<{ Bindings: Env; Variables: { reque
       }
     }, 400);
   }
-} 
+}

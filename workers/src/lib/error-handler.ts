@@ -83,7 +83,7 @@ export function createErrorResponse(
   requestId?: string
 ): Response {
   const id = requestId || generateRequestId();
-  
+
   if (error instanceof ApiError) {
     const errorResponse: ApiErrorType = {
       error: error.name,
@@ -149,7 +149,7 @@ export function createSuccessResponse<T>(
   requestId?: string
 ): Response {
   const id = requestId || generateRequestId();
-  
+
   const response = {
     success: true,
     data,
@@ -175,11 +175,11 @@ export function errorHandler() {
       return c.res;
     } catch (error) {
       const requestId = c.get('requestId') || generateRequestId();
-      
+
       if (error instanceof Error) {
         return createErrorResponse(error, requestId);
       }
-      
+
       // Handle non-Error objects
       console.error('Non-Error thrown', { requestId, error });
       return createErrorResponse(new ApiError('An unexpected error occurred'), requestId);
@@ -194,19 +194,19 @@ export function requestIdMiddleware() {
   return async (c: Context, next: () => Promise<void>): Promise<void> => {
     const requestId = generateRequestId();
     c.set('requestId', requestId);
-    
+
     console.info('Request started', {
       requestId,
       method: c.req.method,
       path: c.req.path,
       userAgent: c.req.header('User-Agent')
     });
-    
+
     await next();
-    
+
     console.info('Request completed', {
       requestId,
       status: c.res.status
     });
   };
-} 
+}
