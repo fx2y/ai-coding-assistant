@@ -3,7 +3,7 @@
  * Implements RFC-IDX-001: Metadata storage in KV
  */
 
-import type { ChunkMetadata } from '../types.js';
+import type { ChunkMetadata, PinnedContextItem } from '../types.js';
 
 /**
  * Generates KV keys for chunk metadata
@@ -141,4 +141,96 @@ export async function deleteProjectChunks(
     console.error(`Failed to delete chunks for project ${projectId}:`, error);
     throw error;
   }
+}
+
+/**
+ * Pinned Context KV Operations
+ * Implements RFC-CTX-001, RFC-MEM-001
+ */
+
+/**
+ * Generates KV keys for pinned context items
+ */
+export function generatePinnedItemKey(projectId: string, pinnedItemId: string): string {
+  return `project:${projectId}:pinned_item:${pinnedItemId}`;
+}
+
+/**
+ * Saves pinned context item to KV
+ */
+export async function savePinnedItem(
+  kv: KVNamespace,
+  item: PinnedContextItem
+): Promise<void> {
+  const key = generatePinnedItemKey(item.projectId, item.id);
+  await kv.put(key, JSON.stringify(item));
+}
+
+/**
+ * Retrieves pinned context item from KV
+ */
+export async function getPinnedItem(
+  kv: KVNamespace,
+  projectId: string,
+  pinnedItemId: string
+): Promise<PinnedContextItem | null> {
+  const key = generatePinnedItemKey(projectId, pinnedItemId);
+  const value = await kv.get(key);
+  
+  if (!value) {
+    return null;
+  }
+  
+  try {
+    return JSON.parse(value) as PinnedContextItem;
+  } catch (error) {
+    console.error(`Failed to parse pinned item for ${key}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Lists all pinned context items for a project
+ */
+export async function getPinnedItemsForProject(
+  kv: KVNamespace,
+  projectId: string
+): Promise<PinnedContextItem[]> {
+  const prefix = `project:${projectId}:pinned_item:`;
+  const items: PinnedContextItem[] = [];
+  
+  try {
+    const list = await kv.list({ prefix });
+    
+    for (const key of list.keys) {
+      const value = await kv.get(key.name);
+      if (value) {
+        try {
+          const item = JSON.parse(value) as PinnedContextItem;
+          items.push(item);
+        } catch (error) {
+          console.error(`Failed to parse pinned item for ${key.name}:`, error);
+        }
+      }
+    }
+    
+    // Sort by creation date (newest first)
+    items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  } catch (error) {
+    console.error(`Failed to list pinned items for project ${projectId}:`, error);
+  }
+  
+  return items;
+}
+
+/**
+ * Deletes a pinned context item from KV
+ */
+export async function deletePinnedItem(
+  kv: KVNamespace,
+  projectId: string,
+  pinnedItemId: string
+): Promise<void> {
+  const key = generatePinnedItemKey(projectId, pinnedItemId);
+  await kv.delete(key);
 } 

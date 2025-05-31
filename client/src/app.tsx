@@ -1,9 +1,14 @@
 import { ApiKeyManager } from './components/ApiKeyManager';
 import { EchoTest } from './components/EchoTest';
 import { CodeSearch } from './components/CodeSearch';
+import { PinnedContextManager } from './components/PinnedContextManager';
 import './app.css';
 
 export function App() {
+  // For demo purposes, using a sample project ID
+  // In a real app, this would come from project selection/creation
+  const sampleProjectId = '550e8400-e29b-41d4-a716-446655440000';
+
   return (
     <div className="app">
       <header className="app-header">
@@ -20,6 +25,10 @@ export function App() {
           <CodeSearch />
         </section>
         
+        <section className="pinned-context-section">
+          <PinnedContextManager projectId={sampleProjectId} />
+        </section>
+        
         <section className="testing-section">
           <EchoTest />
         </section>
@@ -33,6 +42,7 @@ export function App() {
               <li>Click "Save Keys" to store them securely in your browser</li>
               <li>Upload and index your code project</li>
               <li>Use the search interface to find relevant code snippets</li>
+              <li>Pin important files or text snippets for easy access</li>
             </ol>
           </div>
         </section>

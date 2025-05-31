@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleProjectUpload } from './projectHandlers.js';
+import { handleProjectUpload, handleAddPinnedItem, handleListPinnedItems, handleRemovePinnedItem } from './projectHandlers.js';
 import * as indexingService from '../services/indexingService.js';
 import type { Env } from '../types.js';
 
@@ -313,5 +313,323 @@ describe('handleEmbeddingGeneration', () => {
       }),
       400
     );
+  });
+});
+
+describe('Pinned Context Handlers', () => {
+  describe('handleAddPinnedItem', () => {
+    it('should add a pinned item successfully', async () => {
+      const mockKV = {
+        put: vi.fn().mockResolvedValue(undefined)
+      } as unknown as KVNamespace;
+
+      const mockEnv = {
+        METADATA_KV: mockKV
+      } as Env;
+
+      const mockContext = {
+        req: {
+          param: vi.fn().mockReturnValue('550e8400-e29b-41d4-a716-446655440000'),
+          json: vi.fn().mockResolvedValue({
+            type: 'text_snippet',
+            content: 'Important note about authentication',
+            description: 'Auth reminder'
+          })
+        },
+        json: vi.fn().mockReturnValue(new Response()),
+        env: mockEnv
+      };
+
+      const response = await handleAddPinnedItem(mockContext as any);
+
+      expect(mockContext.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: expect.any(String),
+          projectId: '550e8400-e29b-41d4-a716-446655440000',
+          type: 'text_snippet',
+          content: 'Important note about authentication',
+          description: 'Auth reminder',
+          createdAt: expect.any(String)
+        }),
+        201
+      );
+      expect(mockKV.put).toHaveBeenCalledOnce();
+    });
+
+    it('should add a pinned item without description', async () => {
+      const mockKV = {
+        put: vi.fn().mockResolvedValue(undefined)
+      } as unknown as KVNamespace;
+
+      const mockEnv = {
+        METADATA_KV: mockKV
+      } as Env;
+
+      const mockContext = {
+        req: {
+          param: vi.fn().mockReturnValue('550e8400-e29b-41d4-a716-446655440000'),
+          json: vi.fn().mockResolvedValue({
+            type: 'file_path',
+            content: 'src/components/auth.tsx'
+          })
+        },
+        json: vi.fn().mockReturnValue(new Response()),
+        env: mockEnv
+      };
+
+      const response = await handleAddPinnedItem(mockContext as any);
+
+      expect(mockContext.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'file_path',
+          content: 'src/components/auth.tsx'
+        }),
+        201
+      );
+      expect(mockContext.json).toHaveBeenCalledWith(
+        expect.not.objectContaining({
+          description: expect.anything()
+        }),
+        201
+      );
+    });
+
+    it('should return 400 for missing projectId', async () => {
+      const mockEnv = {} as Env;
+      
+      const mockContext = {
+        req: {
+          param: vi.fn().mockReturnValue(undefined)
+        },
+        json: vi.fn().mockReturnValue(new Response()),
+        env: mockEnv
+      };
+
+      await handleAddPinnedItem(mockContext as any);
+
+      expect(mockContext.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'BadRequest',
+          code: 'MISSING_PROJECT_ID'
+        }),
+        400
+      );
+    });
+
+    it('should return 400 for invalid projectId format', async () => {
+      const mockEnv = {} as Env;
+      
+      const mockContext = {
+        req: {
+          param: vi.fn().mockReturnValue('invalid-id')
+        },
+        json: vi.fn().mockReturnValue(new Response()),
+        env: mockEnv
+      };
+
+      await handleAddPinnedItem(mockContext as any);
+
+      expect(mockContext.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'BadRequest',
+          code: 'INVALID_PROJECT_ID'
+        }),
+        400
+      );
+    });
+
+    it('should return 400 for invalid request body', async () => {
+      const mockEnv = {} as Env;
+      
+      const mockContext = {
+        req: {
+          param: vi.fn().mockReturnValue('550e8400-e29b-41d4-a716-446655440000'),
+          json: vi.fn().mockResolvedValue({
+            type: 'invalid_type',
+            content: ''
+          })
+        },
+        json: vi.fn().mockReturnValue(new Response()),
+        env: mockEnv
+      };
+
+      await handleAddPinnedItem(mockContext as any);
+
+      expect(mockContext.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'BadRequest',
+          code: 'INVALID_REQUEST_FORMAT'
+        }),
+        400
+      );
+    });
+  });
+
+  describe('handleListPinnedItems', () => {
+    it('should list pinned items successfully', async () => {
+      const mockItems = [
+        {
+          id: '123e4567-e89b-12d3-a456-426614174000',
+          projectId: '550e8400-e29b-41d4-a716-446655440000',
+          type: 'text_snippet',
+          content: 'Important note',
+          description: 'Auth reminder',
+          createdAt: '2024-01-01T00:00:00.000Z'
+        },
+        {
+          id: '123e4567-e89b-12d3-a456-426614174001',
+          projectId: '550e8400-e29b-41d4-a716-446655440000',
+          type: 'file_path',
+          content: 'src/auth.tsx',
+          createdAt: '2024-01-01T00:00:00.000Z'
+        }
+      ];
+
+      const mockKV = {
+        list: vi.fn().mockResolvedValue({
+          keys: [
+            { name: 'project:550e8400-e29b-41d4-a716-446655440000:pinned_item:123e4567-e89b-12d3-a456-426614174000' },
+            { name: 'project:550e8400-e29b-41d4-a716-446655440000:pinned_item:123e4567-e89b-12d3-a456-426614174001' }
+          ]
+        }),
+        get: vi.fn()
+          .mockResolvedValueOnce(JSON.stringify(mockItems[0]))
+          .mockResolvedValueOnce(JSON.stringify(mockItems[1]))
+      } as unknown as KVNamespace;
+
+      const mockEnv = {
+        METADATA_KV: mockKV
+      } as Env;
+
+      const mockContext = {
+        req: {
+          param: vi.fn().mockReturnValue('550e8400-e29b-41d4-a716-446655440000')
+        },
+        json: vi.fn().mockReturnValue(new Response()),
+        env: mockEnv
+      };
+
+      await handleListPinnedItems(mockContext as any);
+
+      expect(mockContext.json).toHaveBeenCalledWith(
+        {
+          items: expect.arrayContaining([
+            expect.objectContaining({ id: '123e4567-e89b-12d3-a456-426614174000' }),
+            expect.objectContaining({ id: '123e4567-e89b-12d3-a456-426614174001' })
+          ]),
+          count: 2
+        },
+        200
+      );
+    });
+
+    it('should return empty list when no items exist', async () => {
+      const mockKV = {
+        list: vi.fn().mockResolvedValue({ keys: [] })
+      } as unknown as KVNamespace;
+
+      const mockEnv = {
+        METADATA_KV: mockKV
+      } as Env;
+
+      const mockContext = {
+        req: {
+          param: vi.fn().mockReturnValue('550e8400-e29b-41d4-a716-446655440000')
+        },
+        json: vi.fn().mockReturnValue(new Response()),
+        env: mockEnv
+      };
+
+      await handleListPinnedItems(mockContext as any);
+
+      expect(mockContext.json).toHaveBeenCalledWith(
+        {
+          items: [],
+          count: 0
+        },
+        200
+      );
+    });
+  });
+
+  describe('handleRemovePinnedItem', () => {
+    it('should remove a pinned item successfully', async () => {
+      const mockKV = {
+        delete: vi.fn().mockResolvedValue(undefined)
+      } as unknown as KVNamespace;
+
+      const mockEnv = {
+        METADATA_KV: mockKV
+      } as Env;
+
+      const mockContext = {
+        req: {
+          param: vi.fn()
+            .mockReturnValueOnce('550e8400-e29b-41d4-a716-446655440000')
+            .mockReturnValueOnce('123e4567-e89b-12d3-a456-426614174000')
+        },
+        json: vi.fn().mockReturnValue(new Response()),
+        env: mockEnv
+      };
+
+      await handleRemovePinnedItem(mockContext as any);
+
+      expect(mockContext.json).toHaveBeenCalledWith(
+        {
+          success: true,
+          message: 'Pinned item removed successfully'
+        },
+        200
+      );
+      expect(mockKV.delete).toHaveBeenCalledWith('project:550e8400-e29b-41d4-a716-446655440000:pinned_item:123e4567-e89b-12d3-a456-426614174000');
+    });
+
+    it('should return 400 for missing pinnedItemId', async () => {
+      const mockEnv = {} as Env;
+      
+      const mockContext = {
+        req: {
+          param: vi.fn()
+            .mockReturnValueOnce('550e8400-e29b-41d4-a716-446655440000')
+            .mockReturnValueOnce(undefined)
+        },
+        json: vi.fn().mockReturnValue(new Response()),
+        env: mockEnv
+      };
+
+      await handleRemovePinnedItem(mockContext as any);
+
+      expect(mockContext.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'BadRequest',
+          code: 'MISSING_PINNED_ITEM_ID'
+        }),
+        400
+      );
+    });
+
+    it('should return 400 for invalid pinnedItemId format', async () => {
+      const mockEnv = {} as Env;
+      
+      const mockContext = {
+        req: {
+          param: vi.fn()
+            .mockReturnValueOnce('550e8400-e29b-41d4-a716-446655440000')
+            .mockReturnValueOnce('invalid-id')
+        },
+        json: vi.fn().mockReturnValue(new Response()),
+        env: mockEnv
+      };
+
+      await handleRemovePinnedItem(mockContext as any);
+
+      expect(mockContext.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'BadRequest',
+          code: 'INVALID_PINNED_ITEM_ID'
+        }),
+        400
+      );
+    });
   });
 });

@@ -13,6 +13,10 @@ export interface VectorSearchRequest {
     modelName?: string;
   };
   top_k?: number;
+  // RFC-CTX-001: Explicit context support
+  explicit_context_paths?: string[];
+  pinned_item_ids?: string[];
+  include_pinned?: boolean;
 }
 
 export interface VectorSearchResult {
@@ -111,6 +115,66 @@ export async function performVectorSearch(
       }
     };
   }
+}
+
+/**
+ * Parse @file and @folder tags from query text
+ * Implements RFC-CTX-001: Explicit Context Management
+ */
+export function parseExplicitTags(queryText: string): {
+  explicitPaths: string[];
+  cleanedQuery: string;
+} {
+  // Regex to match @file or @folder tags: @path/to/file.js or @src/components/
+  const tagRegex = /@([\w\/\.-]+)/g;
+  const explicitPaths: string[] = [];
+  let match;
+  
+  while ((match = tagRegex.exec(queryText)) !== null) {
+    if (match[1]) {
+      explicitPaths.push(match[1]);
+    }
+  }
+  
+  // Remove tags from query text for cleaner LLM input
+  const cleanedQuery = queryText.replace(tagRegex, '').trim();
+  
+  return {
+    explicitPaths: [...new Set(explicitPaths)], // Remove duplicates
+    cleanedQuery
+  };
+}
+
+/**
+ * Perform context-aware vector search with explicit file/folder references
+ * Automatically parses @tags from query and includes them in the request
+ */
+export async function performContextAwareVectorSearch(
+  request: VectorSearchRequest & {
+    auto_parse_tags?: boolean;
+  }
+): Promise<SearchApiResponse<VectorSearchResponse>> {
+  const { auto_parse_tags = true, explicit_context_paths = [], ...baseRequest } = request;
+  
+  let explicitPaths: string[] = [...explicit_context_paths];
+  let queryText = request.query_text;
+  
+  // Parse @tags if enabled and merge with existing paths
+  if (auto_parse_tags) {
+    const parsed = parseExplicitTags(request.query_text);
+    explicitPaths = [...explicitPaths, ...parsed.explicitPaths];
+    queryText = parsed.cleanedQuery;
+  }
+  
+  // Remove duplicates
+  explicitPaths = [...new Set(explicitPaths)];
+  
+  // Perform search with explicit context
+  return performVectorSearch({
+    ...baseRequest,
+    query_text: queryText,
+    explicit_context_paths: explicitPaths
+  });
 }
 
 /**

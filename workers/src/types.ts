@@ -250,7 +250,7 @@ export const EmbeddingGenerationRequestSchema = z.object({
 
 export type EmbeddingGenerationRequest = z.infer<typeof EmbeddingGenerationRequestSchema>;
 
-// Vector search types (P1-E3-S1)
+// Vector search types (P1-E3-S1, RFC-CTX-001)
 export const VectorSearchRequestSchema = z.object({
   project_id: z.string().uuid('Invalid project ID format'),
   query_text: z.string().min(1, 'Query text is required'),
@@ -265,7 +265,11 @@ export const VectorSearchRequestSchema = z.object({
     ]),
     modelName: z.string().optional()
   }),
-  top_k: z.number().int().min(1).max(50).optional().default(10)
+  top_k: z.number().int().min(1).max(50).optional().default(10),
+  // RFC-CTX-001: Explicit context support
+  explicit_context_paths: z.array(z.string()).optional().default([]),
+  pinned_item_ids: z.array(z.string()).optional().default([]),
+  include_pinned: z.boolean().optional().default(true)
 });
 
 export type VectorSearchRequest = z.infer<typeof VectorSearchRequestSchema>;
@@ -287,3 +291,50 @@ export interface VectorSearchResponse {
   vector_search_time_ms: number;
   total_time_ms: number;
 }
+
+// Pinned Context types (RFC-CTX-001, RFC-MEM-001)
+export interface PinnedContextItem {
+  id: string;
+  projectId: string;
+  type: 'file_path' | 'text_snippet';
+  content: string;
+  description?: string;
+  createdAt: string;
+}
+
+export const CreatePinnedItemSchema = z.object({
+  type: z.enum(['file_path', 'text_snippet']),
+  content: z.string().min(1, 'Content is required'),
+  description: z.string().optional()
+});
+
+export type CreatePinnedItemRequest = z.infer<typeof CreatePinnedItemSchema>;
+
+// Context-aware query types (RFC-CTX-001)
+export const ContextAwareQuerySchema = z.object({
+  project_id: z.string().uuid('Invalid project ID format'),
+  query_text: z.string().min(1, 'Query text is required'),
+  user_api_keys: z.object({
+    llmKey: z.string().min(1, 'LLM API key is required'),
+    embeddingKey: z.string().optional() // Optional for context-only queries
+  }),
+  // RFC-CTX-001: Explicit context support
+  explicit_context_paths: z.array(z.string()).optional().default([]),
+  pinned_item_ids: z.array(z.string()).optional().default([]),
+  include_pinned: z.boolean().optional().default(true),
+  // Optional vector search for additional context
+  vector_search_config: z.object({
+    enabled: z.boolean().default(false),
+    embedding_model_config: z.object({
+      service: z.enum([
+        'openai_embedding',
+        'jina_embedding',
+        'cohere_embed'
+      ]),
+      modelName: z.string().optional()
+    }),
+    top_k: z.number().int().min(1).max(50).optional().default(5)
+  }).optional()
+});
+
+export type ContextAwareQueryRequest = z.infer<typeof ContextAwareQuerySchema>;

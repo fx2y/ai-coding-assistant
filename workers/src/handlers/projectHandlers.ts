@@ -4,8 +4,14 @@
  */
 
 import type { Context } from 'hono';
-import type { Env, ProjectUploadResponse } from '../types.js';
+import type { Env, ProjectUploadResponse, PinnedContextItem, CreatePinnedItemRequest } from '../types.js';
 import { processAndStoreZip, generateProjectId, chunkFilesInProject } from '../services/indexingService.js';
+import { 
+  savePinnedItem, 
+  getPinnedItemsForProject, 
+  deletePinnedItem 
+} from '../lib/kvStore.js';
+import { CreatePinnedItemSchema } from '../types.js';
 
 /**
  * Handles project code upload via ZIP file
@@ -227,8 +233,212 @@ export async function handleEmbeddingGeneration(c: Context<{ Bindings: Env }>): 
 
     return c.json({
       error: 'InternalServerError',
-      message: 'Failed to process embedding generation',
+      message: 'Failed to generate embeddings',
       code: 'EMBEDDING_GENERATION_FAILED',
+      details: errorMessage
+    }, 500);
+  }
+}
+
+/**
+ * Pinned Context Management Handlers
+ * Implements RFC-CTX-001, RFC-MEM-001
+ */
+
+/**
+ * Handles adding a pinned context item
+ * POST /api/project/:projectId/pinned_context
+ */
+export async function handleAddPinnedItem(c: Context<{ Bindings: Env }>): Promise<Response> {
+  try {
+    // Extract project ID from URL parameters
+    const projectId = c.req.param('projectId');
+
+    if (!projectId) {
+      return c.json({
+        error: 'BadRequest',
+        message: 'Missing projectId parameter',
+        code: 'MISSING_PROJECT_ID'
+      }, 400);
+    }
+
+    // Validate project ID format (should be UUID)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(projectId)) {
+      return c.json({
+        error: 'BadRequest',
+        message: 'Invalid projectId format. Expected UUID.',
+        code: 'INVALID_PROJECT_ID'
+      }, 400);
+    }
+
+    // Parse and validate request body
+    const body = await c.req.json();
+    const validationResult = CreatePinnedItemSchema.safeParse(body);
+
+    if (!validationResult.success) {
+      return c.json({
+        error: 'BadRequest',
+        message: 'Invalid request format',
+        code: 'INVALID_REQUEST_FORMAT',
+        details: validationResult.error.flatten()
+      }, 400);
+    }
+
+    const { type, content, description } = validationResult.data;
+
+    // Generate unique ID for the pinned item
+    const pinnedItemId = crypto.randomUUID();
+    
+    // Create pinned context item
+    const pinnedItem: PinnedContextItem = {
+      id: pinnedItemId,
+      projectId,
+      type,
+      content,
+      ...(description && { description }),
+      createdAt: new Date().toISOString()
+    };
+
+    // Save to KV
+    await savePinnedItem(c.env.METADATA_KV, pinnedItem);
+
+    console.log(`Added pinned item ${pinnedItemId} for project ${projectId}`, {
+      type,
+      contentLength: content.length,
+      hasDescription: !!description
+    });
+
+    return c.json(pinnedItem, 201);
+
+  } catch (error) {
+    console.error('Add pinned item failed:', error);
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    return c.json({
+      error: 'InternalServerError',
+      message: 'Failed to add pinned item',
+      code: 'ADD_PINNED_ITEM_FAILED',
+      details: errorMessage
+    }, 500);
+  }
+}
+
+/**
+ * Handles listing pinned context items for a project
+ * GET /api/project/:projectId/pinned_context
+ */
+export async function handleListPinnedItems(c: Context<{ Bindings: Env }>): Promise<Response> {
+  try {
+    // Extract project ID from URL parameters
+    const projectId = c.req.param('projectId');
+
+    if (!projectId) {
+      return c.json({
+        error: 'BadRequest',
+        message: 'Missing projectId parameter',
+        code: 'MISSING_PROJECT_ID'
+      }, 400);
+    }
+
+    // Validate project ID format (should be UUID)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(projectId)) {
+      return c.json({
+        error: 'BadRequest',
+        message: 'Invalid projectId format. Expected UUID.',
+        code: 'INVALID_PROJECT_ID'
+      }, 400);
+    }
+
+    // Retrieve pinned items from KV
+    const pinnedItems = await getPinnedItemsForProject(c.env.METADATA_KV, projectId);
+
+    console.log(`Retrieved ${pinnedItems.length} pinned items for project ${projectId}`);
+
+    return c.json({
+      items: pinnedItems,
+      count: pinnedItems.length
+    }, 200);
+
+  } catch (error) {
+    console.error('List pinned items failed:', error);
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    return c.json({
+      error: 'InternalServerError',
+      message: 'Failed to list pinned items',
+      code: 'LIST_PINNED_ITEMS_FAILED',
+      details: errorMessage
+    }, 500);
+  }
+}
+
+/**
+ * Handles removing a pinned context item
+ * DELETE /api/project/:projectId/pinned_context/:pinnedItemId
+ */
+export async function handleRemovePinnedItem(c: Context<{ Bindings: Env }>): Promise<Response> {
+  try {
+    // Extract parameters from URL
+    const projectId = c.req.param('projectId');
+    const pinnedItemId = c.req.param('pinnedItemId');
+
+    if (!projectId) {
+      return c.json({
+        error: 'BadRequest',
+        message: 'Missing projectId parameter',
+        code: 'MISSING_PROJECT_ID'
+      }, 400);
+    }
+
+    if (!pinnedItemId) {
+      return c.json({
+        error: 'BadRequest',
+        message: 'Missing pinnedItemId parameter',
+        code: 'MISSING_PINNED_ITEM_ID'
+      }, 400);
+    }
+
+    // Validate project ID format (should be UUID)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(projectId)) {
+      return c.json({
+        error: 'BadRequest',
+        message: 'Invalid projectId format. Expected UUID.',
+        code: 'INVALID_PROJECT_ID'
+      }, 400);
+    }
+
+    if (!uuidRegex.test(pinnedItemId)) {
+      return c.json({
+        error: 'BadRequest',
+        message: 'Invalid pinnedItemId format. Expected UUID.',
+        code: 'INVALID_PINNED_ITEM_ID'
+      }, 400);
+    }
+
+    // Delete from KV
+    await deletePinnedItem(c.env.METADATA_KV, projectId, pinnedItemId);
+
+    console.log(`Removed pinned item ${pinnedItemId} from project ${projectId}`);
+
+    return c.json({
+      success: true,
+      message: 'Pinned item removed successfully'
+    }, 200);
+
+  } catch (error) {
+    console.error('Remove pinned item failed:', error);
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    return c.json({
+      error: 'InternalServerError',
+      message: 'Failed to remove pinned item',
+      code: 'REMOVE_PINNED_ITEM_FAILED',
       details: errorMessage
     }, 500);
   }

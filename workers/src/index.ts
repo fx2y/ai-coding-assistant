@@ -13,7 +13,7 @@ import {
   proxySupportedServicesHandler
 } from './handlers/proxy-handlers.js';
 import { echoHandler } from './handlers/debug-handlers.js';
-import { handleProjectUpload, handleProjectChunking, handleEmbeddingGeneration } from './handlers/projectHandlers.js';
+import { handleProjectUpload, handleProjectChunking, handleEmbeddingGeneration, handleAddPinnedItem, handleListPinnedItems, handleRemovePinnedItem } from './handlers/projectHandlers.js';
 import { getVectorizeInfo, testVectorizeQuery } from './handlers/debugHandlers.js';
 import { handleVectorQuery } from './handlers/searchHandlers.js';
 
@@ -52,6 +52,11 @@ app.post('/api/project/:projectId/process_chunks', handleProjectChunking);
 
 // Project embedding generation endpoint (P1-E2-S1)
 app.post('/api/project/:projectId/generate_embeddings', handleEmbeddingGeneration);
+
+// Pinned context endpoints (P2-E1-S2)
+app.post('/api/project/:projectId/pinned_context', handleAddPinnedItem);
+app.get('/api/project/:projectId/pinned_context', handleListPinnedItems);
+app.delete('/api/project/:projectId/pinned_context/:pinnedItemId', handleRemovePinnedItem);
 
 // Search endpoints (P1-E3-S1)
 app.post('/api/search/vector_query', handleVectorQuery);

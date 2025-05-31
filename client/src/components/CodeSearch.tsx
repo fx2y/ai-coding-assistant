@@ -6,7 +6,7 @@
 import { useState } from 'preact/hooks';
 import { SearchResultsDisplay } from './SearchResultsDisplay';
 import { 
-  performVectorSearch, 
+  performContextAwareVectorSearch, 
   getAvailableEmbeddingModels,
   type VectorSearchRequest,
   type VectorSearchResult
@@ -65,7 +65,7 @@ export function CodeSearch({ defaultProjectId = '' }: CodeSearchProps) {
         top_k: topK
       };
 
-      const response = await performVectorSearch(searchRequest);
+      const response = await performContextAwareVectorSearch(searchRequest);
 
       if (response.success && response.data) {
         setResults(response.data.results);
@@ -95,7 +95,8 @@ export function CodeSearch({ defaultProjectId = '' }: CodeSearchProps) {
       <div className="search-form-section">
         <h2>Code Search</h2>
         <p className="search-description">
-          Search through your indexed code using natural language or code snippets.
+          Search through your indexed code using natural language or code snippets. 
+          Use <code>@filename.js</code> or <code>@folder/</code> to include specific files or folders in your search context.
         </p>
 
         <form onSubmit={handleSearch} className="search-form">
@@ -124,13 +125,13 @@ export function CodeSearch({ defaultProjectId = '' }: CodeSearchProps) {
                 id="search-query"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery((e.target as HTMLTextAreaElement).value)}
-                placeholder="e.g., function to handle user authentication, React component for file upload, error handling in async functions"
+                placeholder="e.g., function to handle user authentication @auth.js, React component for file upload @components/, error handling in async functions"
                 className="form-textarea"
                 rows={3}
                 required
               />
               <small className="form-help">
-                Describe what you're looking for in natural language or paste code snippets
+                Describe what you're looking for in natural language. Use @filename.js or @folder/ to include specific files or folders in context.
               </small>
             </div>
           </div>

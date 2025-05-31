@@ -1,18 +1,21 @@
 /**
  * Search Handlers - API handlers for search operations
  * Implements RFC-RET-001: Basic Vector Search Retrieval (P1-E3-S1)
+ * Implements RFC-CTX-001: Explicit Context Management
  */
 
 import type { Context } from 'hono';
 import type { Env, VectorSearchResponse } from '../types.js';
 import { VectorSearchRequestSchema } from '../types.js';
 import { performVectorSearch } from '../services/retrievalService.js';
+import { buildPromptContext, parseExplicitTags } from '../services/contextBuilderService.js';
 
 /**
- * Handle vector query search requests
+ * Handle vector query search requests with explicit context support
  * POST /api/search/vector_query
  * 
  * Implements RFC-RET-001: Basic Vector Search Retrieval
+ * Implements RFC-CTX-001: Explicit Context Management
  */
 export async function handleVectorQuery(c: Context<{ Bindings: Env; Variables: { requestId: string } }>): Promise<Response> {
   const requestId = c.get('requestId');
@@ -42,22 +45,38 @@ export async function handleVectorQuery(c: Context<{ Bindings: Env; Variables: {
       query_text,
       user_api_keys,
       embedding_model_config,
-      top_k
+      top_k,
+      explicit_context_paths = [],
+      pinned_item_ids = [],
+      include_pinned = true
     } = validationResult.data;
 
-    console.log(`Processing vector query request`, {
+    console.log(`Processing vector query request with explicit context`, {
       requestId,
       projectId: project_id,
       queryLength: query_text.length,
       embeddingService: embedding_model_config.service,
-      topK: top_k
+      topK: top_k,
+      explicitPaths: explicit_context_paths,
+      pinnedItemIds: pinned_item_ids,
+      includePinned: include_pinned
     });
+
+    // Parse @tags from query if explicit_context_paths is empty
+    let finalExplicitPaths = explicit_context_paths;
+    let finalQueryText = query_text;
+    
+    if (explicit_context_paths.length === 0) {
+      const parsed = parseExplicitTags(query_text);
+      finalExplicitPaths = parsed.explicitPaths;
+      finalQueryText = parsed.cleanedQuery || query_text; // Keep original if cleaned is empty
+    }
 
     // Perform vector search
     const searchResult = await performVectorSearch(
       c.env,
       project_id,
-      query_text,
+      finalQueryText,
       user_api_keys.embeddingKey,
       embedding_model_config,
       top_k
@@ -83,12 +102,46 @@ export async function handleVectorQuery(c: Context<{ Bindings: Env; Variables: {
       }, statusCode);
     }
 
-    // Return successful results
-    const response: VectorSearchResponse = {
+    // Build explicit context if requested
+    let contextInfo = undefined;
+    if (finalExplicitPaths.length > 0 || include_pinned) {
+      try {
+        const contextResult = await buildPromptContext(c.env, project_id, {
+          explicitPaths: finalExplicitPaths,
+          pinnedItemIds: pinned_item_ids,
+          includePinned: include_pinned,
+          vectorSearchResults: searchResult.results || []
+        });
+
+        contextInfo = {
+          context_string: contextResult.contextString,
+          included_sources: contextResult.includedSources,
+          total_characters: contextResult.totalCharacters
+        };
+
+        console.log(`Built explicit context`, {
+          requestId,
+          projectId: project_id,
+          sourcesCount: contextResult.includedSources.length,
+          totalCharacters: contextResult.totalCharacters
+        });
+      } catch (contextError) {
+        console.error(`Failed to build explicit context`, {
+          requestId,
+          projectId: project_id,
+          error: contextError instanceof Error ? contextError.message : 'Unknown error'
+        });
+        // Continue without context rather than failing the entire request
+      }
+    }
+
+    // Return successful results with optional context
+    const response: VectorSearchResponse & { context?: any } = {
       results: searchResult.results || [],
       query_embedding_time_ms: searchResult.timings.queryEmbeddingMs,
       vector_search_time_ms: searchResult.timings.vectorSearchMs,
-      total_time_ms: searchResult.timings.totalMs
+      total_time_ms: searchResult.timings.totalMs,
+      ...(contextInfo && { context: contextInfo })
     };
 
     console.log(`Vector query completed successfully`, {
@@ -96,7 +149,8 @@ export async function handleVectorQuery(c: Context<{ Bindings: Env; Variables: {
       projectId: project_id,
       resultCount: response.results.length,
       timings: searchResult.timings,
-      topScore: response.results[0]?.score || 0
+      topScore: response.results[0]?.score || 0,
+      hasContext: !!contextInfo
     });
 
     return c.json(response);
