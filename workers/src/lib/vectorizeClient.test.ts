@@ -154,7 +154,7 @@ describe('VectorizeClient', () => {
 
       expect(mockVectorizeIndex.query).toHaveBeenCalledWith(
         [0.1, 0.2, 0.3],
-        { topK: 10 }
+        { topK: 10, returnMetadata: true, returnValues: false }
       );
 
       expect(result).toEqual(mockResult);
@@ -179,6 +179,8 @@ describe('VectorizeClient', () => {
         [0.1, 0.2, 0.3],
         { 
           topK: 5,
+          returnMetadata: true,
+          returnValues: false,
           filter: { projectId: 'test-project' }
         }
       );

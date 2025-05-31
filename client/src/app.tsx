@@ -1,5 +1,6 @@
 import { ApiKeyManager } from './components/ApiKeyManager';
 import { EchoTest } from './components/EchoTest';
+import { CodeSearch } from './components/CodeSearch';
 import './app.css';
 
 export function App() {
@@ -15,6 +16,10 @@ export function App() {
           <ApiKeyManager />
         </section>
         
+        <section className="search-section">
+          <CodeSearch />
+        </section>
+        
         <section className="testing-section">
           <EchoTest />
         </section>
@@ -26,7 +31,8 @@ export function App() {
               <li>Enter your LLM API key (OpenAI, Anthropic, Cohere, etc.)</li>
               <li>Enter your Embedding API key (Jina, OpenAI, etc.)</li>
               <li>Click "Save Keys" to store them securely in your browser</li>
-              <li>Start using the AI coding assistant</li>
+              <li>Upload and index your code project</li>
+              <li>Use the search interface to find relevant code snippets</li>
             </ol>
           </div>
         </section>

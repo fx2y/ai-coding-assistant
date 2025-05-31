@@ -65,7 +65,26 @@ export async function queryVectors(
 ): Promise<VectorizeMatches> {
   return index.query(queryVector, {
     topK,
+    returnMetadata: true,
+    returnValues: false,
     ...(filter && { filter })
+  });
+}
+
+/**
+ * Query vectors with project filtering for search operations (P1-E3-S1)
+ */
+export async function queryVectorsForProject(
+  index: VectorizeIndex,
+  queryVector: number[],
+  projectId: string,
+  topK: number = 10
+): Promise<VectorizeMatches> {
+  return index.query(queryVector, {
+    topK,
+    returnMetadata: true,
+    returnValues: false,
+    filter: { projectId }
   });
 }
 

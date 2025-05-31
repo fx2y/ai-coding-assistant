@@ -45,13 +45,17 @@ body {
   width: 100%;
 }
 
-.configuration-section {
-  margin-bottom: 40px;
+.configuration-section,
+.search-section,
+.testing-section,
+.status-section {
+  margin-bottom: 2rem;
 }
 
-.status-section {
-  display: flex;
-  justify-content: center;
+.search-section {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1rem;
 }
 
 .info-card {

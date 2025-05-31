@@ -249,3 +249,41 @@ export const EmbeddingGenerationRequestSchema = z.object({
 });
 
 export type EmbeddingGenerationRequest = z.infer<typeof EmbeddingGenerationRequestSchema>;
+
+// Vector search types (P1-E3-S1)
+export const VectorSearchRequestSchema = z.object({
+  project_id: z.string().uuid('Invalid project ID format'),
+  query_text: z.string().min(1, 'Query text is required'),
+  user_api_keys: z.object({
+    embeddingKey: z.string().min(1, 'Embedding API key is required')
+  }),
+  embedding_model_config: z.object({
+    service: z.enum([
+      'openai_embedding',
+      'jina_embedding',
+      'cohere_embed'
+    ]),
+    modelName: z.string().optional()
+  }),
+  top_k: z.number().int().min(1).max(50).optional().default(10)
+});
+
+export type VectorSearchRequest = z.infer<typeof VectorSearchRequestSchema>;
+
+export interface VectorSearchResult {
+  chunk_id: string;
+  original_file_path: string;
+  start_line: number;
+  end_line?: number;
+  score: number;
+  text_snippet?: string; // Hydrated content from R2 (P1-E3-S2)
+  language?: string; // Language detected from chunk metadata
+  metadata?: Record<string, any> | undefined;
+}
+
+export interface VectorSearchResponse {
+  results: VectorSearchResult[];
+  query_embedding_time_ms: number;
+  vector_search_time_ms: number;
+  total_time_ms: number;
+}

@@ -15,6 +15,7 @@ import {
 import { echoHandler } from './handlers/debug-handlers.js';
 import { handleProjectUpload, handleProjectChunking, handleEmbeddingGeneration } from './handlers/projectHandlers.js';
 import { getVectorizeInfo, testVectorizeQuery } from './handlers/debugHandlers.js';
+import { handleVectorQuery } from './handlers/searchHandlers.js';
 
 // Initialize Hono app with environment type
 const app = new Hono<{ Bindings: Env; Variables: { requestId: string } }>();
@@ -51,6 +52,9 @@ app.post('/api/project/:projectId/process_chunks', handleProjectChunking);
 
 // Project embedding generation endpoint (P1-E2-S1)
 app.post('/api/project/:projectId/generate_embeddings', handleEmbeddingGeneration);
+
+// Search endpoints (P1-E3-S1)
+app.post('/api/search/vector_query', handleVectorQuery);
 
 // Debug endpoints (P0-E2-S2)
 app.post('/api/echo', echoHandler);
