@@ -46,10 +46,17 @@ body {
 }
 
 .configuration-section,
+.agent-section,
 .search-section,
 .testing-section,
 .status-section {
   margin-bottom: 2rem;
+}
+
+.agent-section {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1rem;
 }
 
 .search-section {

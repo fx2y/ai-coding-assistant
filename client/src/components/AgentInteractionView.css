@@ -1,0 +1,468 @@
+/* Agent Interaction View Styles */
+.agent-interaction-container {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.agent-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  text-align: center;
+}
+
+.agent-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.agent-header p {
+  margin: 0;
+  opacity: 0.9;
+  font-size: 14px;
+}
+
+/* Input Section */
+.agent-input-section {
+  padding: 20px;
+  border-bottom: 1px solid #e9ecef;
+  background: #f8f9fa;
+}
+
+.agent-input-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agent-input-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.agent-input-group {
+  flex: 1;
+}
+
+.agent-input-group label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+  color: #374151;
+  font-size: 14px;
+}
+
+.agent-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.agent-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.agent-textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+  transition: border-color 0.2s;
+}
+
+.agent-textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.agent-submit-btn {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  white-space: nowrap;
+}
+
+.agent-submit-btn:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.agent-submit-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.agent-clear-btn {
+  background: #6b7280;
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  white-space: nowrap;
+}
+
+.agent-clear-btn:hover {
+  background: #4b5563;
+}
+
+/* Conversation Display */
+.agent-conversation {
+  max-height: 600px;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.agent-turn {
+  padding: 16px 20px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.agent-turn:last-child {
+  border-bottom: none;
+}
+
+/* User Turn */
+.agent-turn.user {
+  background: #f8fafc;
+}
+
+.agent-turn-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.agent-turn-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+}
+
+.agent-turn.user .agent-turn-icon {
+  background: #3b82f6;
+}
+
+.agent-turn.assistant .agent-turn-icon {
+  background: #10b981;
+}
+
+.agent-turn.tool_observation .agent-turn-icon {
+  background: #f59e0b;
+}
+
+.agent-turn-role {
+  font-weight: 600;
+  color: #374151;
+  text-transform: capitalize;
+}
+
+.agent-turn-timestamp {
+  font-size: 12px;
+  color: #6b7280;
+  margin-left: auto;
+}
+
+.agent-turn-content {
+  color: #374151;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* Assistant Turn with Thought */
+.agent-turn.assistant {
+  background: #f0fdf4;
+}
+
+.agent-thought-section {
+  margin-bottom: 16px;
+}
+
+.agent-thought-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.agent-thought-label {
+  font-weight: 600;
+  color: #059669;
+  font-size: 14px;
+}
+
+.agent-thought-toggle {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.agent-thought-content {
+  background: rgba(16, 185, 129, 0.1);
+  border-left: 3px solid #10b981;
+  padding: 12px;
+  border-radius: 0 6px 6px 0;
+  font-style: italic;
+  color: #065f46;
+  line-height: 1.5;
+}
+
+.agent-thought-content.collapsed {
+  display: none;
+}
+
+/* Action Section */
+.agent-action-section {
+  margin-bottom: 16px;
+}
+
+.agent-action-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.agent-action-label {
+  font-weight: 600;
+  color: #7c3aed;
+  font-size: 14px;
+}
+
+.agent-action-content {
+  background: rgba(124, 58, 237, 0.1);
+  border-left: 3px solid #7c3aed;
+  padding: 12px;
+  border-radius: 0 6px 6px 0;
+}
+
+.agent-action-tool {
+  font-weight: 600;
+  color: #5b21b6;
+  margin-bottom: 8px;
+}
+
+.agent-action-args {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 8px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  color: #374151;
+  overflow-x: auto;
+}
+
+.agent-action-buttons {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.agent-execute-btn {
+  background: #7c3aed;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.agent-execute-btn:hover:not(:disabled) {
+  background: #6d28d9;
+}
+
+.agent-execute-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.agent-cancel-btn {
+  background: #6b7280;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.agent-cancel-btn:hover {
+  background: #4b5563;
+}
+
+/* Direct Response */
+.agent-direct-response {
+  background: rgba(16, 185, 129, 0.1);
+  border-left: 3px solid #10b981;
+  padding: 12px;
+  border-radius: 0 6px 6px 0;
+  color: #065f46;
+  line-height: 1.6;
+}
+
+/* Tool Observation Turn */
+.agent-turn.tool_observation {
+  background: #fffbeb;
+}
+
+.agent-observation-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.agent-observation-label {
+  font-weight: 600;
+  color: #d97706;
+  font-size: 14px;
+}
+
+.agent-observation-tool {
+  font-size: 12px;
+  color: #92400e;
+  background: rgba(217, 119, 6, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.agent-observation-content {
+  background: rgba(245, 158, 11, 0.1);
+  border-left: 3px solid #f59e0b;
+  padding: 12px;
+  border-radius: 0 6px 6px 0;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  color: #92400e;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+.agent-observation-content.error {
+  background: rgba(239, 68, 68, 0.1);
+  border-left-color: #ef4444;
+  color: #991b1b;
+}
+
+/* Loading States */
+.agent-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px;
+  background: #f8fafc;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.agent-loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e5e7eb;
+  border-top: 2px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.agent-loading-text {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+/* Error States */
+.agent-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 12px;
+  margin: 16px 20px;
+  color: #991b1b;
+}
+
+.agent-error-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.agent-error-message {
+  font-size: 14px;
+}
+
+/* Empty State */
+.agent-empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6b7280;
+}
+
+.agent-empty-state h3 {
+  margin: 0 0 8px 0;
+  color: #374151;
+}
+
+.agent-empty-state p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .agent-input-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .agent-action-buttons {
+    flex-direction: column;
+  }
+  
+  .agent-conversation {
+    max-height: 400px;
+  }
+  
+  .agent-turn {
+    padding: 12px 16px;
+  }
+  
+  .agent-input-section {
+    padding: 16px;
+  }
+} 

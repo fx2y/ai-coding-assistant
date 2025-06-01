@@ -2,6 +2,7 @@ import { ApiKeyManager } from './components/ApiKeyManager';
 import { EchoTest } from './components/EchoTest';
 import { CodeSearch } from './components/CodeSearch';
 import { PinnedContextManager } from './components/PinnedContextManager';
+import { AgentInteractionView } from './components/AgentInteractionView';
 import { ActiveFileProvider } from './contexts/ActiveFileContext';
 import './app.css';
 
@@ -21,6 +22,10 @@ export function App() {
         <main className="app-main">
           <section className="configuration-section">
             <ApiKeyManager />
+          </section>
+          
+          <section className="agent-section">
+            <AgentInteractionView defaultProjectId={sampleProjectId} />
           </section>
           
           <section className="search-section">
@@ -43,6 +48,7 @@ export function App() {
                 <li>Enter your Embedding API key (Jina, OpenAI, etc.)</li>
                 <li>Click "Save Keys" to store them securely in your browser</li>
                 <li>Upload and index your code project</li>
+                <li>Use the AI agent to ask questions about your code</li>
                 <li>Use the search interface to find relevant code snippets</li>
                 <li>Pin important files or text snippets for easy access</li>
               </ol>
