@@ -508,3 +508,48 @@ export interface ProxyErrorResponse {
 }
 
 export type ChatCompletionResult = ChatCompletionResponse | ProxyErrorResponse;
+
+// Tool execution types (RFC-AGT-002)
+export interface ToolExecutionRequest {
+  project_id: string;
+  session_id: string;
+  tool_name: string;
+  tool_args: Record<string, unknown>;
+  user_api_keys: {
+    llmKey?: string;
+    embeddingKey?: string;
+  };
+  embedding_model_config?: EmbeddingModelConfig;
+}
+
+export interface ToolExecutionResponse {
+  session_id: string;
+  tool_name: string;
+  observation: string;
+  is_error: boolean;
+  execution_time_ms: number;
+}
+
+// Zod schema for tool execution validation
+export const ToolExecutionRequestSchema = z.object({
+  project_id: z.string().uuid(),
+  session_id: z.string().uuid(),
+  tool_name: z.string().min(1),
+  tool_args: z.record(z.unknown()),
+  user_api_keys: z.object({
+    llmKey: z.string().optional(),
+    embeddingKey: z.string().optional()
+  }),
+  embedding_model_config: z.object({
+    service: z.enum([
+      'openai_embedding',
+      'jina_embedding',
+      'cohere_embed'
+    ]),
+    modelName: z.string().optional(),
+    dimensions: z.number().optional(),
+    batchSize: z.number().optional()
+  }).optional()
+});
+
+export type ValidatedToolExecutionRequest = z.infer<typeof ToolExecutionRequestSchema>;
