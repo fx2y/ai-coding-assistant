@@ -3,7 +3,13 @@
  * Implements RFC-SEC-001: Secure External API Proxy Client
  */
 
-import type { SupportedExternalService } from '../types.js';
+import type { 
+  SupportedExternalService, 
+  ChatCompletionRequest, 
+  ChatCompletionResult, 
+  ChatCompletionResponse,
+  ProxyErrorResponse as ProxyError
+} from '../types.js';
 
 /**
  * Embedding request payload structure for external embedding APIs
@@ -197,4 +203,97 @@ export async function getBatchEmbeddingsViaProxy(
   }
 
   return { embeddings, errors };
+}
+
+/**
+ * Check if the result is a chat completion error response
+ */
+export function isChatCompletionError(result: ChatCompletionResult): result is ProxyError {
+  return 'error' in result;
+}
+
+/**
+ * Get chat completion via the BYOK proxy worker
+ * 
+ * @param proxyWorkerFetch - Fetch function (global fetch or worker-specific)
+ * @param targetService - External service identifier (e.g., 'openai_chat', 'anthropic_claude')
+ * @param apiKey - User's API key for the external service
+ * @param payload - Chat completion request payload
+ * @param proxyUrl - URL of the BYOK proxy endpoint
+ * @returns Promise resolving to chat completion response or error
+ */
+export async function getChatCompletionViaProxy(
+  proxyWorkerFetch: typeof fetch,
+  targetService: SupportedExternalService,
+  apiKey: string,
+  payload: ChatCompletionRequest,
+  proxyUrl: string
+): Promise<ChatCompletionResult> {
+  try {
+    console.log(`Making chat completion request via proxy`, {
+      targetService,
+      proxyUrl,
+      model: payload.model,
+      messageCount: payload.messages.length,
+      temperature: payload.temperature,
+      maxTokens: payload.max_tokens
+    });
+
+    const response = await proxyWorkerFetch(proxyUrl, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        target_service: targetService,
+        api_key: apiKey,
+        payload: payload,
+      }),
+    });
+
+    if (!response.ok) {
+      let errorData: unknown;
+      try {
+        errorData = await response.json();
+      } catch {
+        errorData = { message: 'Failed to parse error response from proxy' };
+      }
+
+      console.error(`Error from BYOK proxy for ${targetService}`, {
+        status: response.status,
+        statusText: response.statusText,
+        errorData
+      });
+
+      return {
+        error: {
+          status: response.status,
+          message: `Proxy request failed: ${response.status} ${response.statusText}`,
+          data: errorData
+        }
+      };
+    }
+
+    const responseData = await response.json() as ChatCompletionResponse;
+
+    console.log(`Chat completion request successful via proxy`, {
+      targetService,
+      model: responseData.model,
+      choicesCount: responseData.choices?.length || 0,
+      usage: responseData.usage
+    });
+
+    return responseData;
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown network error';
+    console.error(`Network error calling BYOK proxy for ${targetService}:`, error);
+
+    return {
+      error: {
+        message: `Network error: ${errorMessage}`,
+        data: error
+      }
+    };
+  }
 } 

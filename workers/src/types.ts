@@ -371,3 +371,140 @@ export interface TruncationResult {
   wasTruncated: boolean;
   truncationMethod: string;
 }
+
+// ReAct Agent types (RFC-AGT-001, RFC-AGT-004)
+export interface ReactStepRequest {
+  project_id: string;
+  session_id: string;
+  user_query: string;
+  conversation_history: AgentTurn[];
+  explicit_context_paths?: string[];
+  pinned_item_ids_to_include?: string[];
+  implicit_context?: {
+    last_focused_file_path?: string;
+  };
+  vector_search_results_to_include?: VectorSearchResult[];
+  available_tools_prompt_segment: string;
+  llm_config: {
+    modelName: string;
+    tokenLimit: number;
+    reservedOutputTokens: number;
+    temperature?: number;
+  };
+  user_api_keys: {
+    llmKey: string;
+  };
+  max_iterations_left: number;
+}
+
+export interface ActionDetails {
+  tool_name: string;
+  tool_args: Record<string, unknown>;
+  raw_action_string: string;
+}
+
+export interface ReactStepResponse {
+  session_id: string;
+  thought: string;
+  action_details: ActionDetails | null;
+  direct_response: string | null;
+  updated_conversation_history: AgentTurn[];
+  iterations_remaining: number;
+  status: 'action_proposed' | 'direct_response_provided' | 'error';
+}
+
+// Zod schemas for ReAct agent validation
+export const ReactStepRequestSchema = z.object({
+  project_id: z.string().uuid(),
+  session_id: z.string().uuid(),
+  user_query: z.string(),
+  conversation_history: z.array(z.object({
+    role: z.enum(['user', 'assistant', 'tool_observation']),
+    content: z.string(),
+    toolCall: z.object({
+      name: z.string(),
+      parameters: z.record(z.unknown())
+    }).optional(),
+    toolResult: z.object({
+      success: z.boolean(),
+      result: z.unknown(),
+      error: z.string().optional()
+    }).optional(),
+    timestamp: z.string()
+  })),
+  explicit_context_paths: z.array(z.string()).optional(),
+  pinned_item_ids_to_include: z.array(z.string()).optional(),
+  implicit_context: z.object({
+    last_focused_file_path: z.string().optional()
+  }).optional(),
+  vector_search_results_to_include: z.array(z.object({
+    chunk_id: z.string(),
+    original_file_path: z.string(),
+    start_line: z.number(),
+    end_line: z.number().optional(),
+    score: z.number(),
+    text_snippet: z.string().optional(),
+    language: z.string().optional(),
+    metadata: z.record(z.any()).optional()
+  })).optional(),
+  available_tools_prompt_segment: z.string(),
+  llm_config: z.object({
+    modelName: z.string(),
+    tokenLimit: z.number().int().positive(),
+    reservedOutputTokens: z.number().int().positive(),
+    temperature: z.number().min(0).max(2).optional()
+  }),
+  user_api_keys: z.object({
+    llmKey: z.string().min(1)
+  }),
+  max_iterations_left: z.number().int().min(0)
+});
+
+export type ValidatedReactStepRequest = z.infer<typeof ReactStepRequestSchema>;
+
+// Chat completion types for BYOK proxy
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatCompletionRequest {
+  model: string;
+  messages: ChatMessage[];
+  temperature?: number;
+  max_tokens?: number;
+  top_p?: number;
+  frequency_penalty?: number;
+  presence_penalty?: number;
+  stop?: string | string[];
+}
+
+export interface ChatCompletionResponse {
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+  choices: Array<{
+    index: number;
+    message: {
+      role: string;
+      content: string;
+    };
+    finish_reason: string;
+  }>;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
+
+export interface ProxyErrorResponse {
+  error: {
+    status?: number;
+    message: string;
+    data?: unknown;
+  };
+}
+
+export type ChatCompletionResult = ChatCompletionResponse | ProxyErrorResponse;
