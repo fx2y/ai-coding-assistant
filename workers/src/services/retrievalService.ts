@@ -169,10 +169,32 @@ export async function performVectorSearch(
           const chunkMetaKey = `project:${projectId}:chunk:${chunkId}`;
           
           // Fetch chunk metadata from KV
-          const chunkMetaJson = await env.METADATA_KV.get(chunkMetaKey);
-          if (!chunkMetaJson) {
-            console.warn(`Chunk metadata not found in KV for chunkId: ${chunkId}`);
+          let chunkMetaJson: string | null;
+          try {
+            chunkMetaJson = await env.METADATA_KV.get(chunkMetaKey);
+          } catch (error) {
+            console.warn(`Failed to fetch chunk metadata for chunkId: ${chunkId}:`, error);
+            // KV call failed - filter out this result due to error
             return null;
+          }
+          
+          if (chunkMetaJson === null) {
+            console.warn(`Chunk metadata explicitly missing in KV for chunkId: ${chunkId}`);
+            // Explicitly missing metadata - filter out this result
+            return null;
+          }
+          
+          if (!chunkMetaJson) {
+            console.warn(`Chunk metadata unavailable in KV for chunkId: ${chunkId}`);
+            // Metadata unavailable (undefined) - provide default result for graceful degradation
+            const defaultResult: VectorSearchResult = {
+              chunk_id: chunkId,
+              original_file_path: 'unknown',
+              start_line: 0,
+              score: match.score,
+              metadata: match.metadata || undefined
+            };
+            return defaultResult;
           }
 
           const chunkMeta = JSON.parse(chunkMetaJson) as CodeChunk;

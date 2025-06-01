@@ -346,3 +346,28 @@ export const ContextAwareQuerySchema = z.object({
 });
 
 export type ContextAwareQueryRequest = z.infer<typeof ContextAwareQuerySchema>;
+
+// Dynamic Context Window Management types (RFC-CTX-003)
+export interface ManagedPromptContextResult {
+  finalPrompt: string;
+  usedTokens: number;
+  includedSources: string[];
+  warnings: string[];
+  tokenCountMethod: 'tiktoken' | 'heuristic';
+  tokenCountConfidence: 'high' | 'medium' | 'low';
+}
+
+export interface ContextSourceItem {
+  text: string;
+  sourceDesc: string;
+  originalLength?: number;
+  priority: number;
+  type: 'system_prompt' | 'user_query' | 'explicit_file' | 'pinned_snippet' | 'pinned_file' | 'conversation_history' | 'vector_result' | 'implicit_file';
+}
+
+export interface TruncationResult {
+  truncatedText: string;
+  usedTokens: number;
+  wasTruncated: boolean;
+  truncationMethod: string;
+}

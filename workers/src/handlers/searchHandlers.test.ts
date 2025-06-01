@@ -85,7 +85,12 @@ describe('searchHandlers', () => {
         results: mockServiceResult.results,
         query_embedding_time_ms: 150,
         vector_search_time_ms: 25,
-        total_time_ms: 175
+        total_time_ms: 175,
+        context: expect.objectContaining({
+          context_string: expect.any(String),
+          included_sources: expect.any(Array),
+          total_characters: expect.any(Number)
+        })
       });
 
       // Verify service was called correctly
