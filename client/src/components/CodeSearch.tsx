@@ -1,16 +1,18 @@
 /**
  * Code Search Component
  * Implements P1-E3-S2: Main search interface with form and results
+ * Implements P2-E1-S3: Implicit context integration
  */
 
 import { useState } from 'preact/hooks';
 import { SearchResultsDisplay } from './SearchResultsDisplay';
 import { 
-  performContextAwareVectorSearch, 
+  performVectorSearchWithImplicitContext, 
   getAvailableEmbeddingModels,
   type VectorSearchRequest,
   type VectorSearchResult
 } from '../services/searchApiService';
+import { useActiveFile, getImplicitContext } from '../contexts/ActiveFileContext';
 import './CodeSearch.css';
 
 interface CodeSearchProps {
@@ -31,6 +33,7 @@ export function CodeSearch({ defaultProjectId = '' }: CodeSearchProps) {
     total_time_ms: number;
   } | undefined>(undefined);
 
+  const { activeFilePath } = useActiveFile();
   const availableModels = getAvailableEmbeddingModels();
 
   const handleSearch = async (e: Event) => {
@@ -65,7 +68,15 @@ export function CodeSearch({ defaultProjectId = '' }: CodeSearchProps) {
         top_k: topK
       };
 
-      const response = await performContextAwareVectorSearch(searchRequest);
+      // Get implicit context from active file
+      const implicitContext = getImplicitContext(activeFilePath);
+
+      // Log implicit context for debugging
+      if (implicitContext.last_focused_file_path) {
+        console.log(`[Search] Including implicit context: ${implicitContext.last_focused_file_path}`);
+      }
+
+      const response = await performVectorSearchWithImplicitContext(searchRequest, implicitContext);
 
       if (response.success && response.data) {
         setResults(response.data.results);
@@ -97,6 +108,12 @@ export function CodeSearch({ defaultProjectId = '' }: CodeSearchProps) {
         <p className="search-description">
           Search through your indexed code using natural language or code snippets. 
           Use <code>@filename.js</code> or <code>@folder/</code> to include specific files or folders in your search context.
+          {activeFilePath && (
+            <span className="implicit-context-info">
+              <br />
+              <strong>Active file:</strong> <code>{activeFilePath}</code> (will be included as implicit context)
+            </span>
+          )}
         </p>
 
         <form onSubmit={handleSearch} className="search-form">
@@ -132,6 +149,11 @@ export function CodeSearch({ defaultProjectId = '' }: CodeSearchProps) {
               />
               <small className="form-help">
                 Describe what you're looking for in natural language. Use @filename.js or @folder/ to include specific files or folders in context.
+                {activeFilePath && (
+                  <span className="implicit-context-note">
+                    <br />💡 The active file ({activeFilePath}) will be automatically included as context.
+                  </span>
+                )}
               </small>
             </div>
           </div>

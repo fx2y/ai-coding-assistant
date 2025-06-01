@@ -1,10 +1,12 @@
 /**
  * Search Results Display Component
  * Implements P1-E3-S2: Client display of hydrated search results
+ * Implements P2-E1-S3: Implicit context tracking on result interactions
  */
 
 import { useEffect, useRef } from 'preact/hooks';
 import type { VectorSearchResult } from '../services/searchApiService';
+import { useActiveFile } from '../contexts/ActiveFileContext';
 import './SearchResultsDisplay.css';
 
 interface SearchResultsDisplayProps {
@@ -27,6 +29,7 @@ export function SearchResultsDisplay({
   timings
 }: SearchResultsDisplayProps) {
   const codeBlocksRef = useRef<HTMLElement[]>([]);
+  const { setActiveFilePath } = useActiveFile();
 
   // Apply syntax highlighting after results are rendered
   useEffect(() => {
@@ -93,6 +96,11 @@ export function SearchResultsDisplay({
     return highlightedText;
   };
 
+  // Handle result item click for implicit context tracking
+  const handleResultClick = (result: VectorSearchResult) => {
+    setActiveFilePath(result.original_file_path);
+  };
+
   if (isLoading) {
     return (
       <div className="search-results-container">
@@ -150,7 +158,13 @@ export function SearchResultsDisplay({
 
       <div className="search-results-list">
         {results.map((result, index) => (
-          <div key={result.chunk_id} className="search-result-item">
+          <div 
+            key={result.chunk_id} 
+            className="search-result-item"
+            onClick={() => handleResultClick(result)}
+            style={{ cursor: 'pointer' }}
+            title="Click to set as active file for implicit context"
+          >
             <div className="result-header">
               <div className="result-file-info">
                 <span className="file-path" title={result.original_file_path}>
@@ -189,8 +203,8 @@ export function SearchResultsDisplay({
             <div className="result-actions">
               <button
                 className="action-button"
-                onClick={() => {
-                  // Copy file path to clipboard
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent triggering the result click
                   navigator.clipboard?.writeText(result.original_file_path);
                 }}
                 title="Copy file path"
@@ -199,8 +213,8 @@ export function SearchResultsDisplay({
               </button>
               <button
                 className="action-button"
-                onClick={() => {
-                  // Copy code snippet to clipboard
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent triggering the result click
                   navigator.clipboard?.writeText(result.text_snippet || '');
                 }}
                 title="Copy code snippet"

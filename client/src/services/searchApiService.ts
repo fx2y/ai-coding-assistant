@@ -1,6 +1,7 @@
 /**
  * Search API Service for vector search functionality
  * Implements P1-E3-S2: Client-side search API communication
+ * Implements P2-E1-S3: Implicit context integration
  */
 
 import { getApiKeys } from './apiKeyService.js';
@@ -17,6 +18,10 @@ export interface VectorSearchRequest {
   explicit_context_paths?: string[];
   pinned_item_ids?: string[];
   include_pinned?: boolean;
+  // RFC-CTX-002: Implicit context support
+  implicit_context?: {
+    last_focused_file_path?: string;
+  };
 }
 
 export interface VectorSearchResult {
@@ -174,6 +179,41 @@ export async function performContextAwareVectorSearch(
     ...baseRequest,
     query_text: queryText,
     explicit_context_paths: explicitPaths
+  });
+}
+
+/**
+ * Perform vector search with implicit context support
+ * Includes the currently active file path as implicit context
+ * Implements P2-E1-S3: Implicit Context Integration
+ */
+export async function performVectorSearchWithImplicitContext(
+  request: VectorSearchRequest & {
+    auto_parse_tags?: boolean;
+  },
+  implicitContext?: { last_focused_file_path?: string }
+): Promise<SearchApiResponse<VectorSearchResponse>> {
+  const { auto_parse_tags = true, explicit_context_paths = [], ...baseRequest } = request;
+  
+  let explicitPaths: string[] = [...explicit_context_paths];
+  let queryText = request.query_text;
+  
+  // Parse @tags if enabled and merge with existing paths
+  if (auto_parse_tags) {
+    const parsed = parseExplicitTags(request.query_text);
+    explicitPaths = [...explicitPaths, ...parsed.explicitPaths];
+    queryText = parsed.cleanedQuery;
+  }
+  
+  // Remove duplicates
+  explicitPaths = [...new Set(explicitPaths)];
+  
+  // Perform search with both explicit and implicit context
+  return performVectorSearch({
+    ...baseRequest,
+    query_text: queryText,
+    explicit_context_paths: explicitPaths,
+    implicit_context: implicitContext
   });
 }
 

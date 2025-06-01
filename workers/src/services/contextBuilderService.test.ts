@@ -331,4 +331,139 @@ describe('buildPromptContext', () => {
       limit: 5
     });
   });
+
+  it('should handle implicit context when last focused file is provided', async () => {
+    const mockFileContent = 'export function currentlyFocused() { return "active"; }';
+    
+    vi.mocked(mockEnv.CODE_UPLOADS_BUCKET.get).mockResolvedValue({
+      text: () => Promise.resolve(mockFileContent),
+      size: mockFileContent.length
+    } as any);
+
+    vi.mocked(getPinnedItemsForProject).mockResolvedValue([]);
+
+    const result = await buildPromptContext(mockEnv, projectId, {
+      includePinned: false,
+      implicitContext: {
+        last_focused_file_path: 'src/active.js'
+      }
+    });
+
+    expect(mockEnv.CODE_UPLOADS_BUCKET.get).toHaveBeenCalledWith(
+      'projects/test-project-123/original/src/active.js'
+    );
+    expect(result.contextString).toContain('--- CURRENTLY FOCUSED FILE (Implicit): src/active.js ---');
+    expect(result.contextString).toContain(mockFileContent);
+    expect(result.includedSources).toContain('Implicit Context File: src/active.js');
+  });
+
+  it('should not duplicate implicit context file if already included explicitly', async () => {
+    const mockFileContent = 'export function duplicateTest() { return "test"; }';
+    
+    vi.mocked(mockEnv.CODE_UPLOADS_BUCKET.get).mockResolvedValue({
+      text: () => Promise.resolve(mockFileContent),
+      size: mockFileContent.length
+    } as any);
+
+    vi.mocked(getPinnedItemsForProject).mockResolvedValue([]);
+
+    const result = await buildPromptContext(mockEnv, projectId, {
+      explicitPaths: ['src/duplicate.js'],
+      includePinned: false,
+      implicitContext: {
+        last_focused_file_path: 'src/duplicate.js'
+      }
+    });
+
+    // Should only be called once for explicit path, not again for implicit
+    expect(mockEnv.CODE_UPLOADS_BUCKET.get).toHaveBeenCalledTimes(1);
+    expect(mockEnv.CODE_UPLOADS_BUCKET.get).toHaveBeenCalledWith(
+      'projects/test-project-123/original/src/duplicate.js'
+    );
+    
+    // Should appear as explicit file, not implicit
+    expect(result.contextString).toContain('--- FILE: src/duplicate.js ---');
+    expect(result.contextString).not.toContain('--- CURRENTLY FOCUSED FILE (Implicit)');
+    expect(result.includedSources).toContain('File: src/duplicate.js');
+    expect(result.includedSources).not.toContain('Implicit Context File: src/duplicate.js');
+  });
+
+  it('should handle implicit context with missing file gracefully', async () => {
+    vi.mocked(mockEnv.CODE_UPLOADS_BUCKET.get).mockResolvedValue(null);
+    vi.mocked(getPinnedItemsForProject).mockResolvedValue([]);
+
+    const result = await buildPromptContext(mockEnv, projectId, {
+      includePinned: false,
+      implicitContext: {
+        last_focused_file_path: 'src/missing.js'
+      }
+    });
+
+    expect(mockEnv.CODE_UPLOADS_BUCKET.get).toHaveBeenCalledWith(
+      'projects/test-project-123/original/src/missing.js'
+    );
+    
+    // Should not include any implicit context in the result
+    expect(result.contextString).not.toContain('--- CURRENTLY FOCUSED FILE (Implicit)');
+    expect(result.includedSources).not.toContain('Implicit Context File: src/missing.js');
+  });
+
+  it('should combine explicit, pinned, implicit, and vector search contexts', async () => {
+    const explicitFileContent = 'export function explicit() { return "explicit"; }';
+    const implicitFileContent = 'export function implicit() { return "implicit"; }';
+    
+    const mockPinnedItems: PinnedContextItem[] = [
+      {
+        id: 'pin-1',
+        projectId,
+        type: 'text_snippet',
+        content: 'Important pinned note',
+        description: 'Pinned Note',
+        createdAt: '2024-01-01T00:00:00Z'
+      }
+    ];
+
+    const mockVectorResults: VectorSearchResult[] = [
+      {
+        chunk_id: 'chunk-1',
+        original_file_path: 'src/vector.js',
+        start_line: 5,
+        end_line: 10,
+        score: 0.9,
+        text_snippet: 'function vectorResult() { return "vector"; }'
+      }
+    ];
+
+    vi.mocked(mockEnv.CODE_UPLOADS_BUCKET.get)
+      .mockResolvedValueOnce({
+        text: () => Promise.resolve(explicitFileContent),
+        size: explicitFileContent.length
+      } as any)
+      .mockResolvedValueOnce({
+        text: () => Promise.resolve(implicitFileContent),
+        size: implicitFileContent.length
+      } as any);
+
+    vi.mocked(getPinnedItemsForProject).mockResolvedValue(mockPinnedItems);
+
+    const result = await buildPromptContext(mockEnv, projectId, {
+      explicitPaths: ['src/explicit.js'],
+      includePinned: true,
+      vectorSearchResults: mockVectorResults,
+      implicitContext: {
+        last_focused_file_path: 'src/implicit.js'
+      }
+    });
+
+    // Should include all types of context
+    expect(result.contextString).toContain('--- PINNED SNIPPET: Pinned Note ---');
+    expect(result.contextString).toContain('--- FILE: src/explicit.js ---');
+    expect(result.contextString).toContain('--- CURRENTLY FOCUSED FILE (Implicit): src/implicit.js ---');
+    expect(result.contextString).toContain('--- RETRIEVED CODE SNIPPET (src/vector.js L5, Score: 0.90) ---');
+    
+    expect(result.includedSources).toContain('Pinned Snippet: Pinned Note');
+    expect(result.includedSources).toContain('File: src/explicit.js');
+    expect(result.includedSources).toContain('Implicit Context File: src/implicit.js');
+    expect(result.includedSources).toContain('Retrieved: src/vector.js L5');
+  });
 }); 

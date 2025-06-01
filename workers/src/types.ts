@@ -250,7 +250,7 @@ export const EmbeddingGenerationRequestSchema = z.object({
 
 export type EmbeddingGenerationRequest = z.infer<typeof EmbeddingGenerationRequestSchema>;
 
-// Vector search types (P1-E3-S1, RFC-CTX-001)
+// Vector search types (P1-E3-S1, RFC-CTX-001, RFC-CTX-002)
 export const VectorSearchRequestSchema = z.object({
   project_id: z.string().uuid('Invalid project ID format'),
   query_text: z.string().min(1, 'Query text is required'),
@@ -269,7 +269,11 @@ export const VectorSearchRequestSchema = z.object({
   // RFC-CTX-001: Explicit context support
   explicit_context_paths: z.array(z.string()).optional().default([]),
   pinned_item_ids: z.array(z.string()).optional().default([]),
-  include_pinned: z.boolean().optional().default(true)
+  include_pinned: z.boolean().optional().default(true),
+  // RFC-CTX-002: Implicit context support
+  implicit_context: z.object({
+    last_focused_file_path: z.string().optional()
+  }).optional()
 });
 
 export type VectorSearchRequest = z.infer<typeof VectorSearchRequestSchema>;
@@ -310,7 +314,7 @@ export const CreatePinnedItemSchema = z.object({
 
 export type CreatePinnedItemRequest = z.infer<typeof CreatePinnedItemSchema>;
 
-// Context-aware query types (RFC-CTX-001)
+// Context-aware query types (RFC-CTX-001, RFC-CTX-002)
 export const ContextAwareQuerySchema = z.object({
   project_id: z.string().uuid('Invalid project ID format'),
   query_text: z.string().min(1, 'Query text is required'),
@@ -322,6 +326,10 @@ export const ContextAwareQuerySchema = z.object({
   explicit_context_paths: z.array(z.string()).optional().default([]),
   pinned_item_ids: z.array(z.string()).optional().default([]),
   include_pinned: z.boolean().optional().default(true),
+  // RFC-CTX-002: Implicit context support
+  implicit_context: z.object({
+    last_focused_file_path: z.string().optional()
+  }).optional(),
   // Optional vector search for additional context
   vector_search_config: z.object({
     enabled: z.boolean().default(false),

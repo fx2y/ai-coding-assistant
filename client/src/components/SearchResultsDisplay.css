@@ -139,11 +139,39 @@
   border-radius: 8px;
   padding: 1.5rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  transition: box-shadow 0.2s ease;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
+  position: relative;
 }
 
 .search-result-item:hover {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-color: #007acc;
+  transform: translateY(-1px);
+}
+
+.search-result-item:active {
+  transform: translateY(0);
+}
+
+/* Add visual indicator for clickable items */
+.search-result-item::before {
+  content: "💡 Click to set as active file";
+  position: absolute;
+  top: -8px;
+  right: 12px;
+  background: #007acc;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.search-result-item:hover::before {
+  opacity: 1;
 }
 
 /* Result Header */

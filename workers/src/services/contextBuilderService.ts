@@ -8,7 +8,7 @@ import type { Env, VectorSearchResult } from '../types.js';
 import { getPinnedItemsForProject } from '../lib/kvStore.js';
 
 export interface ContextSource {
-  type: 'file' | 'folder' | 'pinned_file' | 'pinned_snippet' | 'vector_result';
+  type: 'file' | 'folder' | 'pinned_file' | 'pinned_snippet' | 'vector_result' | 'implicit_file';
   path?: string;
   description?: string;
   content: string;
@@ -28,13 +28,21 @@ export interface ContextBuildOptions {
   vectorSearchResults?: VectorSearchResult[];
   maxFolderFiles?: number;
   maxFileSize?: number;
+  // RFC-CTX-002: Implicit context support
+  implicitContext?: {
+    last_focused_file_path?: string;
+  };
 }
 
 /**
  * Build comprehensive context for LLM prompts by aggregating:
  * - Explicitly tagged files/folders (@file/@folder)
  * - Pinned context items (files and text snippets)
+ * - Implicit context (last focused file)
  * - Vector search results (optional)
+ * 
+ * Implements RFC-CTX-001: Explicit Context Management
+ * Implements RFC-CTX-002: Implicit Context Aggregation
  */
 export async function buildPromptContext(
   env: Env,
@@ -47,7 +55,8 @@ export async function buildPromptContext(
     includePinned = true,
     vectorSearchResults = [],
     maxFolderFiles = 10,
-    maxFileSize = 50000 // 50KB max per file
+    maxFileSize = 50000, // 50KB max per file
+    implicitContext
   } = options;
 
   const contextSources: ContextSource[] = [];
@@ -131,7 +140,46 @@ export async function buildPromptContext(
       }
     }
 
-    // C. Add Vector Search Results
+    // C. Handle Implicit Context (RFC-CTX-002)
+    if (implicitContext?.last_focused_file_path) {
+      const implicitFilePath = implicitContext.last_focused_file_path;
+      const normalizedImplicitPath = implicitFilePath.startsWith('/') ? implicitFilePath.slice(1) : implicitFilePath;
+      
+      // Check if this file is already included via explicit paths or pinned items
+      const alreadyIncluded = uniquePaths.some(path => {
+        const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
+        return normalizedPath === normalizedImplicitPath;
+      });
+      
+      if (!alreadyIncluded) {
+        const implicitFileSource = await fetchFileContent(
+          env,
+          projectId,
+          normalizedImplicitPath,
+          maxFileSize
+        );
+        
+        if (implicitFileSource) {
+          // Mark as implicit context source
+          const implicitSource: ContextSource = {
+            type: 'implicit_file',
+            path: normalizedImplicitPath,
+            content: implicitFileSource.content
+          };
+          contextSources.push(implicitSource);
+          includedSources.push(`Implicit Context File: ${normalizedImplicitPath}`);
+          totalCharacters += implicitSource.content.length;
+          
+          console.log(`[ContextBuilder] Included implicit context file: ${normalizedImplicitPath}`);
+        } else {
+          console.log(`[ContextBuilder] Implicit context file not found: ${normalizedImplicitPath}`);
+        }
+      } else {
+        console.log(`[ContextBuilder] Implicit context file already included explicitly: ${normalizedImplicitPath}`);
+      }
+    }
+
+    // D. Add Vector Search Results
     for (const result of vectorSearchResults) {
       const source: ContextSource = {
         type: 'vector_result',
@@ -144,7 +192,7 @@ export async function buildPromptContext(
       totalCharacters += source.content.length;
     }
 
-    // D. Build final context string
+    // E. Build final context string
     const contextString = buildContextString(contextSources);
 
     return {
@@ -159,7 +207,8 @@ export async function buildPromptContext(
       projectId,
       error: error instanceof Error ? error.message : 'Unknown error',
       explicitPaths,
-      pinnedItemIds
+      pinnedItemIds,
+      implicitContext
     });
 
     // Return minimal context on error
@@ -303,6 +352,10 @@ function buildContextString(sources: ContextSource[]): string {
       case 'file':
       case 'pinned_file':
         segments.push(`--- FILE: ${source.path} ---\n${source.content}\n---`);
+        break;
+        
+      case 'implicit_file':
+        segments.push(`--- CURRENTLY FOCUSED FILE (Implicit): ${source.path} ---\n${source.content}\n---`);
         break;
         
       case 'folder':

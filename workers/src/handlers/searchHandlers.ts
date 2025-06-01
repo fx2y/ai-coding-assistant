@@ -2,6 +2,7 @@
  * Search Handlers - API handlers for search operations
  * Implements RFC-RET-001: Basic Vector Search Retrieval (P1-E3-S1)
  * Implements RFC-CTX-001: Explicit Context Management
+ * Implements RFC-CTX-002: Implicit Context Integration
  */
 
 import type { Context } from 'hono';
@@ -11,11 +12,12 @@ import { performVectorSearch } from '../services/retrievalService.js';
 import { buildPromptContext, parseExplicitTags } from '../services/contextBuilderService.js';
 
 /**
- * Handle vector query search requests with explicit context support
+ * Handle vector query search requests with explicit and implicit context support
  * POST /api/search/vector_query
  * 
  * Implements RFC-RET-001: Basic Vector Search Retrieval
  * Implements RFC-CTX-001: Explicit Context Management
+ * Implements RFC-CTX-002: Implicit Context Integration
  */
 export async function handleVectorQuery(c: Context<{ Bindings: Env; Variables: { requestId: string } }>): Promise<Response> {
   const requestId = c.get('requestId');
@@ -48,10 +50,11 @@ export async function handleVectorQuery(c: Context<{ Bindings: Env; Variables: {
       top_k,
       explicit_context_paths = [],
       pinned_item_ids = [],
-      include_pinned = true
+      include_pinned = true,
+      implicit_context
     } = validationResult.data;
 
-    console.log(`Processing vector query request with explicit context`, {
+    console.log(`Processing vector query request with explicit and implicit context`, {
       requestId,
       projectId: project_id,
       queryLength: query_text.length,
@@ -59,7 +62,8 @@ export async function handleVectorQuery(c: Context<{ Bindings: Env; Variables: {
       topK: top_k,
       explicitPaths: explicit_context_paths,
       pinnedItemIds: pinned_item_ids,
-      includePinned: include_pinned
+      includePinned: include_pinned,
+      implicitContext: implicit_context?.last_focused_file_path || 'none'
     });
 
     // Parse @tags from query if explicit_context_paths is empty
@@ -102,16 +106,24 @@ export async function handleVectorQuery(c: Context<{ Bindings: Env; Variables: {
       }, statusCode);
     }
 
-    // Build explicit context if requested
+    // Build context if requested (explicit, pinned, or implicit)
     let contextInfo = undefined;
-    if (finalExplicitPaths.length > 0 || include_pinned) {
+    if (finalExplicitPaths.length > 0 || include_pinned || implicit_context?.last_focused_file_path) {
       try {
-        const contextResult = await buildPromptContext(c.env, project_id, {
+        const contextOptions: any = {
           explicitPaths: finalExplicitPaths,
           pinnedItemIds: pinned_item_ids,
           includePinned: include_pinned,
           vectorSearchResults: searchResult.results || []
-        });
+        };
+
+        if (implicit_context?.last_focused_file_path) {
+          contextOptions.implicitContext = {
+            last_focused_file_path: implicit_context.last_focused_file_path
+          };
+        }
+
+        const contextResult = await buildPromptContext(c.env, project_id, contextOptions);
 
         contextInfo = {
           context_string: contextResult.contextString,
@@ -119,14 +131,15 @@ export async function handleVectorQuery(c: Context<{ Bindings: Env; Variables: {
           total_characters: contextResult.totalCharacters
         };
 
-        console.log(`Built explicit context`, {
+        console.log(`Built context with implicit support`, {
           requestId,
           projectId: project_id,
           sourcesCount: contextResult.includedSources.length,
-          totalCharacters: contextResult.totalCharacters
+          totalCharacters: contextResult.totalCharacters,
+          hasImplicitContext: !!implicit_context?.last_focused_file_path
         });
       } catch (contextError) {
-        console.error(`Failed to build explicit context`, {
+        console.error(`Failed to build context`, {
           requestId,
           projectId: project_id,
           error: contextError instanceof Error ? contextError.message : 'Unknown error'
