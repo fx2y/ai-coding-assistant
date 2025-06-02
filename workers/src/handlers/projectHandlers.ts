@@ -443,3 +443,87 @@ export async function handleRemovePinnedItem(c: Context<{ Bindings: Env }>): Pro
     }, 500);
   }
 }
+
+/**
+ * Handles applying a diff to a file in the project
+ * POST /api/project/:projectId/apply_diff
+ * Implements P3-E1-S2: Diff application API
+ * Implements RFC-AGT-003: Semantic Diff Generation & Application
+ */
+export async function handleApplyDiff(c: Context<{ Bindings: Env }>): Promise<Response> {
+  try {
+    // Extract project ID from URL parameters
+    const projectId = c.req.param('projectId');
+
+    if (!projectId) {
+      return c.json({
+        error: 'BadRequest',
+        message: 'Missing projectId parameter',
+        code: 'MISSING_PROJECT_ID'
+      }, 400);
+    }
+
+    // Validate project ID format (should be UUID)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(projectId)) {
+      return c.json({
+        error: 'BadRequest',
+        message: 'Invalid projectId format. Expected UUID.',
+        code: 'INVALID_PROJECT_ID'
+      }, 400);
+    }
+
+    // Parse and validate request body
+    const body = await c.req.json();
+    const { ApplyDiffRequestSchema } = await import('../types.js');
+    const validationResult = ApplyDiffRequestSchema.safeParse(body);
+
+    if (!validationResult.success) {
+      return c.json({
+        error: 'BadRequest',
+        message: 'Invalid request format',
+        code: 'INVALID_REQUEST_FORMAT',
+        details: validationResult.error.flatten()
+      }, 400);
+    }
+
+    const { file_path, diff_string } = validationResult.data;
+
+    console.log(`Applying diff to file ${file_path} in project ${projectId}`);
+
+    // Apply diff using the indexing service
+    const { applyDiffToR2File } = await import('../services/indexingService.js');
+    const result = await applyDiffToR2File(c.env, projectId, file_path, diff_string);
+
+    if (!result.success) {
+      return c.json({
+        error: 'DiffApplicationFailed',
+        message: result.error || 'Failed to apply diff',
+        code: 'DIFF_APPLICATION_FAILED'
+      }, 400);
+    }
+
+    // Return success response
+    const response: import('../types.js').ApplyDiffResponse = {
+      success: true,
+      message: `Diff successfully applied to ${file_path}`,
+      ...(result.newContent && { new_content: result.newContent })
+    };
+
+    console.log(`Diff application complete for ${file_path} in project ${projectId}`);
+
+    return c.json(response, 200);
+
+  } catch (error) {
+    console.error('Apply diff failed:', error);
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    return c.json({
+      error: 'InternalServerError',
+      message: 'Failed to apply diff',
+      code: 'DIFF_APPLICATION_ERROR',
+      details: errorMessage
+    }, 500);
+  }
+}

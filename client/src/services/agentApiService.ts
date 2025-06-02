@@ -238,6 +238,69 @@ export async function executeToolAction(
 }
 
 /**
+ * Apply a diff to a file in the project
+ * Implements P3-E1-S2: Diff application API
+ * Implements RFC-AGT-003: Semantic Diff Generation & Application
+ */
+export interface ApplyDiffRequest {
+  project_id: string;
+  file_path: string;
+  diff_string: string;
+}
+
+export interface ApplyDiffResponse {
+  success: boolean;
+  message: string;
+  new_content?: string;
+}
+
+export async function applyDiff(
+  request: ApplyDiffRequest
+): Promise<AgentApiResponse<ApplyDiffResponse>> {
+  try {
+    const response = await fetch(`${WORKER_BASE_URL}/api/project/${request.project_id}/apply_diff`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        file_path: request.file_path,
+        diff_string: request.diff_string
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: result,
+        requestId: result.requestId
+      };
+    }
+
+    return {
+      success: true,
+      data: result,
+      requestId: result.requestId
+    };
+
+  } catch (error) {
+    console.error('Apply diff request failed:', error);
+    
+    return {
+      success: false,
+      error: {
+        error: 'NetworkError',
+        message: 'Failed to communicate with the project service',
+        code: 'NETWORK_ERROR',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      }
+    };
+  }
+}
+
+/**
  * Generate a unique session ID for agent interactions
  */
 export function generateSessionId(): string {

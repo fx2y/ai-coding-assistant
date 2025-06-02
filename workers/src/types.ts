@@ -553,3 +553,20 @@ export const ToolExecutionRequestSchema = z.object({
 });
 
 export type ValidatedToolExecutionRequest = z.infer<typeof ToolExecutionRequestSchema>;
+
+/**
+ * Apply Diff API types (P3-E1-S2)
+ * Implements RFC-AGT-003: Semantic Diff Generation & Application
+ */
+export const ApplyDiffRequestSchema = z.object({
+  file_path: z.string().min(1, 'File path is required'),
+  diff_string: z.string().min(1, 'Diff string is required')
+});
+
+export type ApplyDiffRequest = z.infer<typeof ApplyDiffRequestSchema>;
+
+export interface ApplyDiffResponse {
+  success: boolean;
+  message: string;
+  new_content?: string;
+}

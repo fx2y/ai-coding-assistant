@@ -2,6 +2,7 @@
  * Agent Interaction View Component
  * Implements P2-E2-S3: Client UI for displaying agent thoughts, actions, and observations
  * Implements RFC-UI-001: Thin client architecture with backend-driven logic
+ * Implements P3-E1-S2: Client & Worker: Diff Display & Approval Workflow
  */
 
 import { useState, useRef, useEffect } from 'preact/hooks';
@@ -12,10 +13,12 @@ import {
   generateSessionId,
   createAgentTurn,
   getDefaultLLMConfig,
+  applyDiff,
   type AgentTurn,
   type ActionDetails,
   type ReactStepResponse
 } from '../services/agentApiService';
+import { DiffViewer } from './DiffViewer';
 import './AgentInteractionView.css';
 
 interface AgentInteractionViewProps {
@@ -24,6 +27,12 @@ interface AgentInteractionViewProps {
 
 interface PendingAction {
   actionDetails: ActionDetails;
+  turnIndex: number;
+}
+
+interface PendingDiff {
+  diffString: string;
+  filePath: string;
   turnIndex: number;
 }
 
@@ -41,6 +50,7 @@ export function AgentInteractionView({ defaultProjectId = '' }: AgentInteraction
   const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState<string>('');
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [pendingDiff, setPendingDiff] = useState<PendingDiff | null>(null);
   const [collapsedThoughts, setCollapsedThoughts] = useState<Set<number>>(new Set());
   
   const conversationRef = useRef<HTMLDivElement>(null);
@@ -209,6 +219,7 @@ export function AgentInteractionView({ defaultProjectId = '' }: AgentInteraction
     setConversationTurns([]);
     setSessionId(generateSessionId());
     setPendingAction(null);
+    setPendingDiff(null);
     setError('');
     setCollapsedThoughts(new Set());
   };
@@ -225,6 +236,100 @@ export function AgentInteractionView({ defaultProjectId = '' }: AgentInteraction
 
   const formatTimestamp = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString();
+  };
+
+  /**
+   * Parse a diff observation to extract diff string and file path
+   * Implements P3-E1-S2: Diff observation parsing
+   */
+  const parseDiffObservation = (content: string): { diffString: string; filePath: string } | null => {
+    // Look for pattern: 'Diff generated for file "path/to/file.js":'
+    const filePathMatch = content.match(/Diff generated for file "([^"]+)":/);
+    if (!filePathMatch) return null;
+
+    const filePath = filePathMatch[1];
+
+    // Extract diff content between ```diff and ```
+    const diffMatch = content.match(/```diff\n([\s\S]*?)\n```/);
+    if (!diffMatch) return null;
+
+    const diffString = diffMatch[1];
+
+    return { diffString, filePath };
+  };
+
+  /**
+   * Handle diff approval - apply the diff and continue the conversation
+   */
+  const handleApproveDiff = async () => {
+    if (!pendingDiff) return;
+
+    setIsLoading(true);
+    setLoadingMessage('Applying diff...');
+
+    try {
+      const response = await applyDiff({
+        project_id: projectId.trim(),
+        file_path: pendingDiff.filePath,
+        diff_string: pendingDiff.diffString
+      });
+
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to apply diff');
+      }
+
+      // Create observation about successful diff application
+      const observationContent = `Diff for "${pendingDiff.filePath}" was approved and applied successfully.`;
+      const observationTurn = createAgentTurn('tool_observation', observationContent);
+      
+      const newObservationTurn: ConversationTurn = { agentTurn: observationTurn };
+      const updatedTurns = [...conversationTurns, newObservationTurn];
+      setConversationTurns(updatedTurns);
+
+      // Clear pending diff
+      setPendingDiff(null);
+
+      // Continue with next ReAct step
+      setLoadingMessage('Agent is processing the results...');
+      await performReactStepWithTurns(updatedTurns);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to apply diff');
+      setIsLoading(false);
+      setLoadingMessage('');
+    }
+  };
+
+  /**
+   * Handle diff rejection - continue the conversation with rejection observation
+   */
+  const handleRejectDiff = async () => {
+    if (!pendingDiff) return;
+
+    setIsLoading(true);
+    setLoadingMessage('Processing rejection...');
+
+    try {
+      // Create observation about diff rejection
+      const observationContent = `User rejected the proposed diff for "${pendingDiff.filePath}".`;
+      const observationTurn = createAgentTurn('tool_observation', observationContent);
+      
+      const newObservationTurn: ConversationTurn = { agentTurn: observationTurn };
+      const updatedTurns = [...conversationTurns, newObservationTurn];
+      setConversationTurns(updatedTurns);
+
+      // Clear pending diff
+      setPendingDiff(null);
+
+      // Continue with next ReAct step
+      setLoadingMessage('Agent is processing the results...');
+      await performReactStepWithTurns(updatedTurns);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to process rejection');
+      setIsLoading(false);
+      setLoadingMessage('');
+    }
   };
 
   const renderConversationTurn = (turn: ConversationTurn, index: number) => {
@@ -321,6 +426,23 @@ export function AgentInteractionView({ defaultProjectId = '' }: AgentInteraction
     if (agentTurn.role === 'tool_observation') {
       const toolName = agentTurn.toolCall?.name || 'unknown';
       const isError = !agentTurn.toolResult?.success || !!agentTurn.toolResult?.error;
+      
+      // Check if this is a diff observation from generate_code_edit tool
+      const diffData = toolName === 'generate_code_edit' ? parseDiffObservation(agentTurn.content) : null;
+      const isLatestTurn = index === conversationTurns.length - 1;
+      const showDiffActions = isLatestTurn && diffData && !pendingDiff;
+
+      // Set pending diff if this is the latest diff observation
+      if (showDiffActions && diffData) {
+        // Use setTimeout to avoid state update during render
+        setTimeout(() => {
+          setPendingDiff({
+            diffString: diffData.diffString,
+            filePath: diffData.filePath,
+            turnIndex: index
+          });
+        }, 0);
+      }
 
       return (
         <div key={index} className="agent-turn tool_observation">
@@ -333,9 +455,25 @@ export function AgentInteractionView({ defaultProjectId = '' }: AgentInteraction
             <span className="agent-observation-label">📊 Observation from</span>
             <span className="agent-observation-tool">{toolName}</span>
           </div>
-          <div className={`agent-observation-content ${isError ? 'error' : ''}`}>
-            {agentTurn.content}
-          </div>
+          
+          {diffData ? (
+            // Render diff viewer for generate_code_edit observations
+            <div className="agent-diff-section">
+              <DiffViewer
+                diffString={diffData.diffString}
+                filePath={diffData.filePath}
+                onApprove={showDiffActions ? handleApproveDiff : undefined}
+                onReject={showDiffActions ? handleRejectDiff : undefined}
+                isLoading={isLoading}
+                showActions={!!showDiffActions}
+              />
+            </div>
+          ) : (
+            // Render normal observation content
+            <div className={`agent-observation-content ${isError ? 'error' : ''}`}>
+              {agentTurn.content}
+            </div>
+          )}
         </div>
       );
     }

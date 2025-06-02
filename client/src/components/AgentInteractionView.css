@@ -378,6 +378,27 @@
   color: #991b1b;
 }
 
+/* Diff Section */
+.agent-diff-section {
+  margin-top: 8px;
+}
+
+.agent-diff-section .diff-viewer {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.agent-diff-section .diff-viewer-header {
+  background: rgba(245, 158, 11, 0.1);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.agent-diff-section .diff-actions {
+  background: rgba(245, 158, 11, 0.05);
+  border-top: 1px solid rgba(245, 158, 11, 0.2);
+}
+
 /* Loading States */
 .agent-loading {
   display: flex;

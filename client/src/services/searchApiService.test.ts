@@ -6,17 +6,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { 
   parseExplicitTags, 
-  performContextAwareVectorSearch,
-  performVectorSearch 
+  performContextAwareVectorSearch
 } from './searchApiService.js';
 
-// Mock the API key service
-vi.mock('./apiKeyService.js', () => ({
-  getApiKeys: vi.fn(() => ({ embeddingKey: 'test-embedding-key' }))
-}));
-
 // Mock fetch globally
-vi.stubGlobal('fetch', vi.fn());
+const mockFetch = vi.fn();
+vi.stubGlobal('fetch', mockFetch);
 
 describe('parseExplicitTags', () => {
   it('should parse single @file tag', () => {
