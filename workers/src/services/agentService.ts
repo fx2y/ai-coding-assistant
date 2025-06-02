@@ -2,6 +2,7 @@
  * Agent Service - ReAct Agent Core Loop Implementation
  * Implements RFC-AGT-001: ReAct Agent Core Loop
  * Implements RFC-AGT-004: Structured Prompting & Agent Control
+ * Implements RFC-AGT-005: Agent Self-Correction Loop for Errors
  * Implements RFC-MOD-001: User-Configurable Model Routing
  */
 
@@ -19,10 +20,14 @@ import { buildManagedPromptContext } from './contextBuilderService.js';
 import { getChatCompletionViaProxy, isChatCompletionError } from '../lib/byokProxyClient.js';
 import { getModelConfig } from '../lib/tokenizer.js';
 import { getModelConfigForTask } from './configService.js';
+import { 
+  analyzeSelfCorrectionTrigger, 
+  shouldLimitCorrectionAttempts 
+} from './selfCorrectionService.js';
 
 /**
  * Performs a single ReAct step: Reason (LLM generates thought + action)
- * Implements RFC-AGT-001, RFC-AGT-004, and RFC-MOD-001
+ * Implements RFC-AGT-001, RFC-AGT-004, RFC-AGT-005, and RFC-MOD-001
  */
 export async function performReActStep(
   env: Env,
@@ -37,6 +42,54 @@ export async function performReActStep(
       historyLength: requestPayload.conversation_history.length,
       iterationsLeft: requestPayload.max_iterations_left
     });
+
+    // RFC-AGT-005: Analyze if self-correction should be triggered
+    const selfCorrectionContext = analyzeSelfCorrectionTrigger(
+      requestPayload.conversation_history as AgentTurn[],
+      requestPayload.user_query
+    );
+
+    // Check if we should limit correction attempts to prevent infinite loops
+    if (selfCorrectionContext.shouldTriggerCorrection) {
+      const shouldLimit = shouldLimitCorrectionAttempts(
+        requestPayload.conversation_history as AgentTurn[],
+        3 // Maximum 3 correction attempts per error
+      );
+
+      if (shouldLimit) {
+        console.warn(`[AgentService] Limiting correction attempts to prevent infinite loop`, {
+          sessionId: requestPayload.session_id,
+          errorType: selfCorrectionContext.errorContext?.type
+        });
+
+        // Return a direct response indicating the agent is stuck
+        const stuckResponse = "I've attempted to correct this error multiple times but haven't been successful. Let me try a different approach or ask for your guidance on how to proceed.";
+        
+        const assistantTurn: AgentTurn = {
+          role: 'assistant',
+          content: stuckResponse,
+          timestamp: new Date().toISOString()
+        };
+
+        const updatedHistory = [...(requestPayload.conversation_history as AgentTurn[]), assistantTurn];
+
+        return {
+          session_id: requestPayload.session_id,
+          thought: '',
+          action_details: null,
+          direct_response: stuckResponse,
+          updated_conversation_history: updatedHistory,
+          iterations_remaining: requestPayload.max_iterations_left - 1,
+          status: 'direct_response_provided'
+        };
+      }
+
+      console.log(`[AgentService] Self-correction triggered`, {
+        sessionId: requestPayload.session_id,
+        errorType: selfCorrectionContext.errorContext?.type,
+        errorMessage: selfCorrectionContext.errorContext?.errorMessage?.substring(0, 100)
+      });
+    }
 
     // 1. Get model configuration for agent reasoning task (RFC-MOD-001)
     const modelConfig = await getModelConfigForTask(env, requestPayload.project_id, 'agent_reasoning');
@@ -73,10 +126,22 @@ export async function performReActStep(
       ...(result.metadata !== undefined && { metadata: result.metadata })
     }));
 
+    // RFC-AGT-005: Modify user query to include self-correction context if needed
+    let enhancedUserQuery = requestPayload.user_query;
+    if (selfCorrectionContext.shouldTriggerCorrection && selfCorrectionContext.correctionPromptSegment) {
+      enhancedUserQuery = `${selfCorrectionContext.correctionPromptSegment}\n\nOriginal User Query: ${requestPayload.user_query}`;
+      
+      console.log(`[AgentService] Enhanced user query with self-correction context`, {
+        sessionId: requestPayload.session_id,
+        originalQueryLength: requestPayload.user_query.length,
+        enhancedQueryLength: enhancedUserQuery.length
+      });
+    }
+
     const contextResult = await buildManagedPromptContext(
       env,
       requestPayload.project_id,
-      requestPayload.user_query,
+      enhancedUserQuery,
       requestPayload.explicit_context_paths || [],
       requestPayload.pinned_item_ids_to_include || [],
       implicitContext,
@@ -88,7 +153,8 @@ export async function performReActStep(
     console.log(`[AgentService] Context built`, {
       usedTokens: contextResult.usedTokens,
       includedSources: contextResult.includedSources.length,
-      warnings: contextResult.warnings
+      warnings: contextResult.warnings,
+      selfCorrectionTriggered: selfCorrectionContext.shouldTriggerCorrection
     });
 
     // 2. Prepare messages for LLM
@@ -153,7 +219,8 @@ export async function performReActStep(
     console.log(`[AgentService] LLM response received`, {
       responseLength: llmResponseText.length,
       model: llmResult.model,
-      usage: llmResult.usage
+      usage: llmResult.usage,
+      selfCorrectionTriggered: selfCorrectionContext.shouldTriggerCorrection
     });
 
     const parseResult = parseReActResponse(llmResponseText);
@@ -161,7 +228,7 @@ export async function performReActStep(
     // 5. Update Conversation History
     const newTurns: AgentTurn[] = [];
 
-    // Add the user query as a turn if it's not empty
+    // Add the user query as a turn if it's not empty (use original query, not enhanced)
     if (requestPayload.user_query.trim()) {
       newTurns.push({
         role: 'user',
