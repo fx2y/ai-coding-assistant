@@ -312,15 +312,15 @@
   background: #6b7280;
   color: white;
   border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  font-size: 13px;
+  padding: 12px 20px;
+  border-radius: 6px;
   font-weight: 500;
   cursor: pointer;
   transition: background-color 0.2s;
+  white-space: nowrap;
 }
 
-.agent-cancel-btn:hover {
+.agent-clear-btn:hover {
   background: #4b5563;
 }
 
@@ -486,4 +486,75 @@
   .agent-input-section {
     padding: 16px;
   }
+}
+
+/* Streaming response styles */
+.streaming-response {
+  border-left: 4px solid #3b82f6;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+}
+
+.streaming-cursor {
+  display: inline-block;
+  animation: blink 1s infinite;
+  color: #3b82f6;
+  font-weight: bold;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.agent-cancel-btn {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.agent-cancel-btn:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+.agent-cancel-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.agent-input-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* Loading spinner for streaming */
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e5e7eb;
+  border-top: 2px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.agent-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: #f3f4f6;
+  border-radius: 6px;
+  margin-top: 12px;
+  color: #6b7280;
+  font-size: 14px;
 } 

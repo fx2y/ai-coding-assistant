@@ -417,7 +417,8 @@ export interface ReactStepResponse {
   direct_response: string | null;
   updated_conversation_history: AgentTurn[];
   iterations_remaining: number;
-  status: 'action_proposed' | 'direct_response_provided' | 'error';
+  status: 'action_proposed' | 'direct_response_provided' | 'streaming_response_available' | 'error';
+  streaming_session_id?: string; // Available when status is 'streaming_response_available'
 }
 
 // Zod schemas for ReAct agent validation
@@ -515,6 +516,82 @@ export interface ProxyErrorResponse {
 }
 
 export type ChatCompletionResult = ChatCompletionResponse | ProxyErrorResponse;
+
+// Streaming types (RFC-SYNC-001, P3-E2-S2)
+export interface StreamingChatCompletionRequest extends ChatCompletionRequest {
+  stream: true;
+}
+
+export interface StreamSessionRequest {
+  session_id: string;
+  project_id: string;
+  user_query: string;
+  conversation_history: AgentTurn[];
+  explicit_context_paths?: string[];
+  pinned_item_ids_to_include?: string[];
+  implicit_context?: {
+    last_focused_file_path?: string;
+  };
+  vector_search_results_to_include?: VectorSearchResult[];
+  available_tools_prompt_segment: string;
+  llm_config: {
+    modelName: string;
+    tokenLimit: number;
+    reservedOutputTokens: number;
+    temperature?: number;
+  };
+  user_api_keys: {
+    llmKey: string;
+  };
+}
+
+// Zod schema for stream session request validation
+export const StreamSessionRequestSchema = z.object({
+  session_id: z.string().uuid(),
+  project_id: z.string().uuid(),
+  user_query: z.string(),
+  conversation_history: z.array(z.object({
+    role: z.enum(['user', 'assistant', 'tool_observation']),
+    content: z.string(),
+    toolCall: z.object({
+      name: z.string(),
+      parameters: z.record(z.unknown())
+    }).optional(),
+    toolResult: z.object({
+      success: z.boolean(),
+      result: z.unknown(),
+      error: z.string().optional()
+    }).optional(),
+    timestamp: z.string()
+  })),
+  explicit_context_paths: z.array(z.string()).optional(),
+  pinned_item_ids_to_include: z.array(z.string()).optional(),
+  implicit_context: z.object({
+    last_focused_file_path: z.string().optional()
+  }).optional(),
+  vector_search_results_to_include: z.array(z.object({
+    chunk_id: z.string(),
+    original_file_path: z.string(),
+    start_line: z.number(),
+    end_line: z.number().optional(),
+    score: z.number(),
+    text_snippet: z.string().optional(),
+    language: z.string().optional(),
+    metadata: z.record(z.any()).optional()
+  })).optional(),
+  available_tools_prompt_segment: z.string(),
+  llm_config: z.object({
+    modelName: z.string(),
+    tokenLimit: z.number().int().positive(),
+    reservedOutputTokens: z.number().int().positive(),
+    temperature: z.number().min(0).max(2).optional()
+  }),
+  user_api_keys: z.object({
+    llmKey: z.string().min(1)
+  })
+});
+
+export type ValidatedStreamSessionRequest = z.infer<typeof StreamSessionRequestSchema>;
 
 // Tool execution types (RFC-AGT-002)
 export interface ToolExecutionRequest {

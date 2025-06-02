@@ -17,7 +17,7 @@ import { handleProjectUpload, handleProjectChunking, handleEmbeddingGeneration, 
 import { getVectorizeInfo, testVectorizeQuery } from './handlers/debugHandlers.js';
 import { handleVectorQuery } from './handlers/searchHandlers.js';
 import { handleManagedContextDemo, handleTokenCountDemo } from './handlers/contextHandlers.js';
-import { handleAgentReactStep, handleToolExecution } from './handlers/agentHandlers.js';
+import { handleAgentReactStep, handleToolExecution, handleAgentResponseStream } from './handlers/agentHandlers.js';
 
 // Initialize Hono app with environment type
 const app = new Hono<{ Bindings: Env; Variables: { requestId: string } }>();
@@ -73,6 +73,9 @@ app.post('/api/context/token_count', handleTokenCountDemo);
 // Agent endpoints (P2-E2-S1, P2-E2-S2)
 app.post('/api/agent/react_step', handleAgentReactStep);
 app.post('/api/agent/execute_action', handleToolExecution);
+
+// Streaming endpoints (P3-E2-S2, RFC-SYNC-001)
+app.post('/api/agent/stream/:sessionId', handleAgentResponseStream);
 
 // Debug endpoints (P0-E2-S2)
 app.post('/api/echo', echoHandler);

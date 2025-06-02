@@ -709,63 +709,63 @@ export async function applyDiffToR2File(
   try {
     // Import diff-match-patch
     const { diff_match_patch } = await import('diff-match-patch');
-    
+
     // Construct R2 key for the original file
     const r2Key = `projects/${projectId}/original/${filePath}`;
-    
+
     // Fetch original file content from R2
     const r2Object = await env.CODE_UPLOADS_BUCKET.get(r2Key);
-    
+
     if (!r2Object) {
       return {
         success: false,
         error: `Original file not found: ${filePath}`
       };
     }
-    
+
     const originalContent = await r2Object.text();
-    
+
     // Apply diff using diff-match-patch
     const dmp = new diff_match_patch();
-    
+
     try {
       // Parse the unified diff into patches
       const patches = dmp.patch_fromText(diffString);
-      
+
       if (patches.length === 0) {
         return {
           success: false,
           error: 'Invalid diff format: no patches found'
         };
       }
-      
+
       // Apply patches to original content
       const [patchedText, results] = dmp.patch_apply(patches, originalContent);
-      
+
       // Check if all patches applied successfully
       const allApplied = results.every(result => result === true);
-      
+
       if (!allApplied) {
         return {
           success: false,
           error: 'Diff could not be applied cleanly. The file may have been modified since the diff was generated.'
         };
       }
-      
+
       // Write new content back to R2
       await env.CODE_UPLOADS_BUCKET.put(r2Key, patchedText, {
         httpMetadata: {
           contentType: determineContentType(filePath)
         }
       });
-      
+
       console.log(`Successfully applied diff to ${filePath} in project ${projectId}`);
-      
+
       return {
         success: true,
         newContent: patchedText
       };
-      
+
     } catch (diffError) {
       console.error('Error applying diff:', diffError);
       return {
@@ -773,7 +773,7 @@ export async function applyDiffToR2File(
         error: `Failed to apply diff: ${diffError instanceof Error ? diffError.message : 'Unknown error'}`
       };
     }
-    
+
   } catch (error) {
     console.error('Error in applyDiffToR2File:', error);
     return {

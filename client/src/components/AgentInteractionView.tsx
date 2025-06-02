@@ -14,12 +14,22 @@ import {
   createAgentTurn,
   getDefaultLLMConfig,
   applyDiff,
+  createStreamingAgentResponseWithFetch,
   type AgentTurn,
   type ActionDetails,
-  type ReactStepResponse
+  type ReactStepResponse,
+  type StreamSessionRequest
 } from '../services/agentApiService';
 import { DiffViewer } from './DiffViewer';
 import './AgentInteractionView.css';
+
+// Import DEFAULT_TOOLS_PROMPT
+const DEFAULT_TOOLS_PROMPT = `Available tools:
+1. **code_search(query: string)**: Search for code snippets relevant to the query
+2. **read_file(file_path: string)**: Read the complete content of a file
+3. **generate_code_edit(file_path: string, instructions: string)**: Generate code edits for a file
+
+Use tools when you need more information to answer the user's question.`;
 
 interface AgentInteractionViewProps {
   defaultProjectId?: string;
@@ -49,10 +59,15 @@ export function AgentInteractionView({ defaultProjectId = '' }: AgentInteraction
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState<string>('');
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-  const [pendingDiff, setPendingDiff] = useState<PendingDiff | null>(null);
+  const [pendingAction, setPendingAction] = useState<ActionDetails | null>(null);
+  const [pendingDiff, setPendingDiff] = useState<{ diffString: string; filePath: string } | null>(null);
   const [collapsedThoughts, setCollapsedThoughts] = useState<Set<number>>(new Set());
   
+  // Streaming state
+  const [streamingText, setStreamingText] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [currentStreamReader, setCurrentStreamReader] = useState<ReadableStreamDefaultReader<string> | null>(null);
+
   const conversationRef = useRef<HTMLDivElement>(null);
   const { activeFilePath } = useActiveFile();
 
@@ -99,21 +114,86 @@ export function AgentInteractionView({ defaultProjectId = '' }: AgentInteraction
     }
   };
 
+  /**
+   * Handle streaming agent response
+   * Implements P3-E2-S2: Client-side streaming consumption
+   */
+  const handleStreamingResponse = async (streamRequest: Omit<StreamSessionRequest, 'user_api_keys'>) => {
+    try {
+      setIsStreaming(true);
+      setStreamingText('');
+      setLoadingMessage('Starting streaming response...');
+
+      const stream = await createStreamingAgentResponseWithFetch(streamRequest);
+      
+      if (!stream) {
+        throw new Error('Failed to create streaming connection');
+      }
+
+      const reader = stream.getReader();
+      setCurrentStreamReader(reader);
+      setLoadingMessage('');
+
+      let accumulatedText = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        accumulatedText += value;
+        setStreamingText(accumulatedText);
+      }
+
+      // Create agent turn with the complete streamed response
+      const assistantTurn = createAgentTurn('assistant', accumulatedText);
+      const newTurn: ConversationTurn = { agentTurn: assistantTurn };
+      setConversationTurns(prev => [...prev, newTurn]);
+
+      setStreamingText('');
+      setIsStreaming(false);
+      setCurrentStreamReader(null);
+
+    } catch (err) {
+      console.error('Streaming error:', err);
+      setError(err instanceof Error ? err.message : 'Streaming failed');
+      setIsStreaming(false);
+      setStreamingText('');
+      setCurrentStreamReader(null);
+      setLoadingMessage('');
+    }
+  };
+
+  /**
+   * Stop current streaming response
+   */
+  const stopStreaming = () => {
+    if (currentStreamReader) {
+      currentStreamReader.cancel();
+      setCurrentStreamReader(null);
+    }
+    setIsStreaming(false);
+    setStreamingText('');
+    setLoadingMessage('');
+  };
+
+  /**
+   * Enhanced performReactStepWithTurns that supports streaming
+   */
   const performReactStepWithTurns = async (turns: ConversationTurn[]) => {
     try {
-      const implicitContext = getImplicitContext(activeFilePath);
       const conversationHistory = turns.map(turn => turn.agentTurn);
-      
+
       const response = await performReactStep({
         project_id: projectId.trim(),
         session_id: sessionId,
-        user_query: conversationHistory[conversationHistory.length - 1]?.content || '',
+        user_query: userQuery,
         conversation_history: conversationHistory,
+        explicit_context_paths: [],
+        pinned_item_ids_to_include: [],
+        implicit_context: getImplicitContext(activeFilePath),
+        vector_search_results_to_include: [],
         llm_config: getDefaultLLMConfig(),
-        max_iterations_left: 5,
-        ...(implicitContext.last_focused_file_path && {
-          implicit_context: implicitContext
-        })
+        max_iterations_left: 3
       });
 
       if (!response.success || !response.data) {
@@ -121,33 +201,76 @@ export function AgentInteractionView({ defaultProjectId = '' }: AgentInteraction
       }
 
       const reactResponse = response.data;
-      
-      // Create assistant turn with the response data
-      const assistantTurn = createAgentTurn('assistant', reactResponse.thought || reactResponse.direct_response || '');
-      const newAssistantTurn: ConversationTurn = { 
-        agentTurn: assistantTurn, 
-        reactResponse 
-      };
-      
-      const updatedTurns = [...turns, newAssistantTurn];
-      setConversationTurns(updatedTurns);
 
-      // Handle the response based on status
-      if (reactResponse.status === 'action_proposed' && reactResponse.action_details) {
-        // Store pending action for user confirmation
-        setPendingAction({
-          actionDetails: reactResponse.action_details,
-          turnIndex: updatedTurns.length - 1
-        });
-        setLoadingMessage('');
+      // Check if streaming response is available
+      if (reactResponse.status === 'streaming_response_available') {
+        console.log('Streaming response available, initiating stream...');
+        
+        // Create streaming request
+        const streamRequest: Omit<StreamSessionRequest, 'user_api_keys'> = {
+          session_id: sessionId,
+          project_id: projectId.trim(),
+          user_query: userQuery,
+          conversation_history: conversationHistory,
+          explicit_context_paths: [],
+          pinned_item_ids_to_include: [],
+          implicit_context: getImplicitContext(activeFilePath),
+          vector_search_results_to_include: [],
+          available_tools_prompt_segment: DEFAULT_TOOLS_PROMPT,
+          llm_config: getDefaultLLMConfig()
+        };
+
+        await handleStreamingResponse(streamRequest);
+        return;
+      }
+
+      // Handle non-streaming responses as before
+      if (reactResponse.action_details) {
+        // Agent proposed an action
+        const assistantTurn = createAgentTurn('assistant', reactResponse.thought);
+        assistantTurn.toolCall = {
+          name: reactResponse.action_details.tool_name,
+          parameters: reactResponse.action_details.tool_args
+        };
+
+        const newTurn: ConversationTurn = { 
+          agentTurn: assistantTurn, 
+          reactResponse 
+        };
+        
+        const updatedTurns = [...turns, newTurn];
+        setConversationTurns(updatedTurns);
+
+        // Set pending action for user approval
+        setPendingAction(reactResponse.action_details);
         setIsLoading(false);
-      } else if (reactResponse.status === 'direct_response_provided') {
-        // Agent provided a direct response, conversation turn complete
         setLoadingMessage('');
+
+      } else if (reactResponse.direct_response) {
+        // Agent provided a direct response
+        const assistantTurn = createAgentTurn('assistant', reactResponse.thought + '\n\n' + reactResponse.direct_response);
+        const newTurn: ConversationTurn = { 
+          agentTurn: assistantTurn, 
+          reactResponse 
+        };
+        
+        const updatedTurns = [...turns, newTurn];
+        setConversationTurns(updatedTurns);
         setIsLoading(false);
-        setPendingAction(null);
-      } else if (reactResponse.status === 'error') {
-        throw new Error('Agent encountered an error during reasoning');
+        setLoadingMessage('');
+
+      } else {
+        // Agent provided only a thought
+        const assistantTurn = createAgentTurn('assistant', reactResponse.thought);
+        const newTurn: ConversationTurn = { 
+          agentTurn: assistantTurn, 
+          reactResponse 
+        };
+        
+        const updatedTurns = [...turns, newTurn];
+        setConversationTurns(updatedTurns);
+        setIsLoading(false);
+        setLoadingMessage('');
       }
 
     } catch (err) {
@@ -216,6 +339,7 @@ export function AgentInteractionView({ defaultProjectId = '' }: AgentInteraction
   };
 
   const handleClearConversation = () => {
+    stopStreaming(); // Stop any ongoing streaming
     setConversationTurns([]);
     setSessionId(generateSessionId());
     setPendingAction(null);
@@ -438,8 +562,7 @@ export function AgentInteractionView({ defaultProjectId = '' }: AgentInteraction
         setTimeout(() => {
           setPendingDiff({
             diffString: diffData.diffString,
-            filePath: diffData.filePath,
-            turnIndex: index
+            filePath: diffData.filePath
           });
         }, 0);
       }
@@ -501,6 +624,7 @@ export function AgentInteractionView({ defaultProjectId = '' }: AgentInteraction
                 placeholder="e.g., 123e4567-e89b-12d3-a456-426614174000"
                 className="agent-input"
                 required
+                disabled={isLoading || isStreaming}
               />
             </div>
           </div>
@@ -515,6 +639,7 @@ export function AgentInteractionView({ defaultProjectId = '' }: AgentInteraction
               className="agent-textarea"
               rows={3}
               required
+              disabled={isLoading || isStreaming}
             />
             {activeFilePath && (
               <small style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px', display: 'block' }}>
@@ -523,50 +648,77 @@ export function AgentInteractionView({ defaultProjectId = '' }: AgentInteraction
             )}
           </div>
 
-          <div className="agent-input-row">
-            <button
-              type="submit"
+          <div className="agent-input-actions">
+            <button 
+              type="submit" 
               className="agent-submit-btn"
-              disabled={isLoading || !userQuery.trim() || !projectId.trim()}
+              disabled={isLoading || isStreaming}
             >
-              {isLoading ? 'Processing...' : 'Ask Agent'}
+              {isLoading || isStreaming ? 'Processing...' : 'Ask Agent'}
             </button>
-            <button
-              type="button"
-              className="agent-clear-btn"
+            
+            {(isLoading || isStreaming) && (
+              <button 
+                type="button" 
+                onClick={isStreaming ? stopStreaming : () => {}}
+                className="agent-cancel-btn"
+              >
+                {isStreaming ? 'Stop Streaming' : 'Cancel'}
+              </button>
+            )}
+            
+            <button 
+              type="button" 
               onClick={handleClearConversation}
-              disabled={isLoading}
+              className="agent-clear-btn"
+              disabled={isLoading || isStreaming}
             >
-              Clear Chat
+              Clear Conversation
             </button>
           </div>
         </form>
+
+        {(isLoading || isStreaming) && loadingMessage && (
+          <div className="agent-loading">
+            <div className="loading-spinner"></div>
+            <span>{loadingMessage}</span>
+          </div>
+        )}
+
+        {error && (
+          <div className="agent-error">
+            <strong>Error:</strong> {error}
+          </div>
+        )}
       </div>
 
-      {error && (
-        <div className="agent-error">
-          <div className="agent-error-title">Error</div>
-          <div className="agent-error-message">{error}</div>
+      {/* Streaming response display */}
+      {isStreaming && streamingText && (
+        <div className="agent-conversation">
+          <div className="agent-turn streaming-response">
+            <div className="agent-turn-header">
+              <span className="agent-role">🤖 Assistant (Streaming)</span>
+              <span className="agent-timestamp">{new Date().toLocaleTimeString()}</span>
+            </div>
+            <div className="agent-turn-content">
+              <div className="agent-response">
+                {streamingText}
+                <span className="streaming-cursor">|</span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
-      <div className="agent-conversation" ref={conversationRef}>
-        {conversationTurns.length === 0 && !isLoading ? (
-          <div className="agent-empty-state">
-            <h3>Start a conversation</h3>
-            <p>Ask the agent about your code and watch it think through the problem step by step.</p>
-          </div>
-        ) : (
-          conversationTurns.map((turn, index) => renderConversationTurn(turn, index))
-        )}
-
-        {isLoading && (
-          <div className="agent-loading">
-            <div className="agent-loading-spinner"></div>
-            <span className="agent-loading-text">{loadingMessage}</span>
-          </div>
-        )}
-      </div>
+      {/* Rest of existing conversation display */}
+      {conversationTurns.length === 0 && !isLoading ? (
+        <div className="agent-empty-state">
+          <h3>Start a conversation</h3>
+          <p>Ask the agent about your code and watch it think through the problem step by step.</p>
+        </div>
+      ) : (
+        conversationTurns.map((turn, index) => renderConversationTurn(turn, index))
+      )}
     </div>
   );
 } 

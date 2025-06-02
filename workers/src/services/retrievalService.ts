@@ -474,7 +474,7 @@ Output a JSON array of the search result IDs, ordered from most relevant to leas
 
     // Re-order results based on LLM ranking
     const rerankedResults: VectorSearchResult[] = [];
-    
+
     // Add results in LLM-specified order
     validIds.forEach(id => {
       const result = resultMap.get(id);

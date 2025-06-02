@@ -297,3 +297,182 @@ export async function getChatCompletionViaProxy(
     };
   }
 }
+
+/**
+ * Streaming chat completion request payload structure
+ */
+export interface StreamingChatCompletionRequest extends ChatCompletionRequest {
+  stream: true;
+}
+
+/**
+ * Get streaming chat completion via the BYOK proxy worker
+ * Returns a ReadableStream of SSE chunks from the external LLM
+ *
+ * @param proxyWorkerFetch - Fetch function (global fetch or worker-specific)
+ * @param targetService - External service identifier (e.g., 'openai_chat', 'anthropic_claude')
+ * @param apiKey - User's API key for the external service
+ * @param payload - Streaming chat completion request payload
+ * @param proxyUrl - URL of the BYOK proxy endpoint
+ * @returns Promise resolving to ReadableStream or error
+ */
+export async function getStreamingChatCompletionViaProxy(
+  proxyWorkerFetch: typeof fetch,
+  targetService: SupportedExternalService,
+  apiKey: string,
+  payload: StreamingChatCompletionRequest,
+  proxyUrl: string
+): Promise<ReadableStream<Uint8Array> | ProxyError> {
+  try {
+    console.log(`Making streaming chat completion request via proxy`, {
+      targetService,
+      proxyUrl,
+      model: payload.model,
+      messageCount: payload.messages.length,
+      temperature: payload.temperature,
+      maxTokens: payload.max_tokens,
+      stream: payload.stream
+    });
+
+    const response = await proxyWorkerFetch(proxyUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        target_service: targetService,
+        api_key: apiKey,
+        payload: payload
+      })
+    });
+
+    if (!response.ok) {
+      let errorData: unknown;
+      try {
+        errorData = await response.json();
+      } catch {
+        errorData = { message: 'Failed to parse error response from proxy' };
+      }
+
+      console.error(`Error from BYOK proxy for streaming ${targetService}`, {
+        status: response.status,
+        statusText: response.statusText,
+        errorData
+      });
+
+      return {
+        error: {
+          status: response.status,
+          message: `Streaming proxy request failed: ${response.status} ${response.statusText}`,
+          data: errorData
+        }
+      };
+    }
+
+    if (!response.body) {
+      console.error(`No response body from BYOK proxy for streaming ${targetService}`);
+      return {
+        error: {
+          message: 'No response body received from streaming proxy',
+          data: null
+        }
+      };
+    }
+
+    console.log(`Streaming chat completion request initiated via proxy`, {
+      targetService,
+      contentType: response.headers.get('content-type')
+    });
+
+    return response.body;
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown network error';
+    console.error(`Network error calling BYOK proxy for streaming ${targetService}:`, error);
+
+    return {
+      error: {
+        message: `Network error: ${errorMessage}`,
+        data: error
+      }
+    };
+  }
+}
+
+/**
+ * Check if the streaming result is an error response
+ */
+export function isStreamingError(result: ReadableStream<Uint8Array> | ProxyError): result is ProxyError {
+  return 'error' in result;
+}
+
+/**
+ * Parse SSE chunks from external LLM stream and extract content tokens
+ * This function processes the raw SSE stream from external LLMs (like OpenAI)
+ * and extracts just the content tokens for re-transmission
+ *
+ * @param stream - ReadableStream from external LLM
+ * @returns ReadableStream of content tokens as strings
+ */
+export function parseSSEContentStream(stream: ReadableStream<Uint8Array>): ReadableStream<string> {
+  const decoder = new TextDecoder();
+
+  return new ReadableStream<string>({
+    async start(controller) {
+      const reader = stream.getReader();
+      let buffer = '';
+
+      try {
+        let done = false;
+        while (!done) {
+          const result = await reader.read();
+          done = result.done;
+
+          if (!done && result.value) {
+            // Decode the chunk and add to buffer
+            const chunk = decoder.decode(result.value, { stream: true });
+            buffer += chunk;
+
+            // Process complete lines
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const jsonData = line.substring(6).trim();
+
+                // Check for stream end
+                if (jsonData === '[DONE]') {
+                  controller.close();
+                  return;
+                }
+
+                try {
+                  const parsed = JSON.parse(jsonData);
+
+                  // Extract content from OpenAI-style response
+                  const contentDelta = parsed.choices?.[0]?.delta?.content;
+                  if (contentDelta && typeof contentDelta === 'string') {
+                    controller.enqueue(contentDelta);
+                  }
+
+                  // Handle other LLM providers' response formats as needed
+                  // Anthropic, Cohere, etc. may have different structures
+
+                } catch (parseError) {
+                  // Skip malformed JSON chunks
+                  console.warn('Failed to parse SSE chunk JSON:', jsonData, parseError);
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error processing SSE stream:', error);
+        controller.error(error);
+      } finally {
+        reader.releaseLock();
+      }
+    }
+  });
+}

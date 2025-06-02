@@ -727,7 +727,7 @@ describe('retrievalService', () => {
 
       it('should return original results for single result', async () => {
         const singleResult = [mockSearchResults[0]!];
-        
+
         const result = await rerankSearchResultsWithLLM(
           mockEnv,
           'test query',
@@ -831,7 +831,7 @@ describe('retrievalService', () => {
 
       it('should respect maxResultsToRerank limit', async () => {
         const configWithLimit = { ...mockRerankingConfig, maxResultsToRerank: 2 };
-        
+
         const mockChatResponse = {
           id: 'test-completion',
           object: 'chat.completion',

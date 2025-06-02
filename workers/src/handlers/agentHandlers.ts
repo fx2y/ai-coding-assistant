@@ -7,9 +7,10 @@
 
 import type { Context } from 'hono';
 import type { Env, ToolExecutionResponse } from '../types.js';
-import { ReactStepRequestSchema, ToolExecutionRequestSchema } from '../types.js';
+import { ReactStepRequestSchema, ToolExecutionRequestSchema, StreamSessionRequestSchema } from '../types.js';
 import { performReActStep } from '../services/agentService.js';
 import { executeToolByName, type ToolExecutionContext } from '../services/toolExecutor.js';
+import { generateStreamingAgentResponse, createSSEResponseStream } from '../services/streamingService.js';
 
 /**
  * Handles ReAct agent step execution
@@ -156,5 +157,133 @@ export async function handleToolExecution(c: Context<{ Bindings: Env }>): Promis
       code: 'TOOL_EXECUTION_FAILED',
       details: errorMessage
     }, 500);
+  }
+}
+
+/**
+ * Handles streaming agent responses via Server-Sent Events
+ * GET /api/agent/stream/:sessionId
+ * Implements RFC-SYNC-001: Real-Time Response Streaming (SSE)
+ * Implements P3-E2-S2: Worker & Client: SSE for Streaming LLM Responses
+ */
+export async function handleAgentResponseStream(c: Context<{ Bindings: Env }>): Promise<Response> {
+  try {
+    const sessionId = c.req.param('sessionId');
+    console.log(`[AgentHandlers] Starting streaming response for session ${sessionId}`);
+
+    // Parse and validate request body from POST data
+    const body = await c.req.json();
+    const validationResult = StreamSessionRequestSchema.safeParse(body);
+
+    if (!validationResult.success) {
+      console.error(`[AgentHandlers] Stream request validation failed:`, validationResult.error.flatten());
+
+      // Return SSE error response
+      const errorStream = new ReadableStream({
+        start(controller) {
+          const encoder = new TextEncoder();
+          const errorEvent = `event: error\ndata: ${JSON.stringify({
+            error: 'Invalid request format',
+            details: validationResult.error.flatten()
+          })}\n\n`;
+          controller.enqueue(encoder.encode(errorEvent));
+          controller.close();
+        }
+      });
+
+      return new Response(errorStream, {
+        status: 200, // SSE should return 200 even for errors
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type'
+        }
+      });
+    }
+
+    const requestPayload = validationResult.data;
+
+    console.log(`[AgentHandlers] Stream request validated`, {
+      projectId: requestPayload.project_id,
+      sessionId: requestPayload.session_id,
+      userQuery: requestPayload.user_query.substring(0, 100) + '...',
+      historyLength: requestPayload.conversation_history.length,
+      modelName: requestPayload.llm_config.modelName
+    });
+
+    // Generate streaming response
+    const contentStream = await generateStreamingAgentResponse(c.env, requestPayload);
+
+    if (!contentStream) {
+      console.error(`[AgentHandlers] Failed to generate streaming response`);
+
+      // Return SSE error response
+      const errorStream = new ReadableStream({
+        start(controller) {
+          const encoder = new TextEncoder();
+          const errorEvent = `event: error\ndata: ${JSON.stringify({
+            error: 'Failed to generate streaming response'
+          })}\n\n`;
+          controller.enqueue(encoder.encode(errorEvent));
+          controller.close();
+        }
+      });
+
+      return new Response(errorStream, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type'
+        }
+      });
+    }
+
+    // Create SSE response stream
+    const sseStream = createSSEResponseStream(contentStream);
+
+    console.log(`[AgentHandlers] Streaming response initiated for session ${sessionId}`);
+
+    return new Response(sseStream, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      }
+    });
+
+  } catch (error) {
+    console.error('[AgentHandlers] Stream handler failed:', error);
+
+    // Return SSE error response
+    const errorStream = new ReadableStream({
+      start(controller) {
+        const encoder = new TextEncoder();
+        const errorEvent = `event: error\ndata: ${JSON.stringify({
+          error: 'Internal server error',
+          message: error instanceof Error ? error.message : 'Unknown error'
+        })}\n\n`;
+        controller.enqueue(encoder.encode(errorEvent));
+        controller.close();
+      }
+    });
+
+    return new Response(errorStream, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      }
+    });
   }
 }

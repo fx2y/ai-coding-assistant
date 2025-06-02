@@ -209,10 +209,9 @@ export async function performReActStep(
 }
 
 /**
- * Build the ReAct system prompt with tool information
- * Implements RFC-AGT-004: Structured Prompting
+ * Build ReAct system prompt with available tools
  */
-function buildReActSystemPrompt(availableToolsPromptSegment: string): string {
+export function buildReActSystemPrompt(availableToolsPromptSegment: string): string {
   return `You are a helpful AI coding assistant that uses a Reason-Act approach.
 
 For each user request, you should:
@@ -253,13 +252,13 @@ function parseReActResponse(llmResponse: string): {
 
   // Extract thought
   const thoughtMatch = llmResponse.match(/^Thought:\s*(.+?)(?=\nAction:|$)/ms);
-  if (thoughtMatch) {
+  if (thoughtMatch && thoughtMatch[1]) {
     thought = thoughtMatch[1].trim();
   }
 
   // Try to extract action
   const actionMatch = llmResponse.match(/^Action:\s*(\w+)\((.*?)\)\s*$/m);
-  if (actionMatch) {
+  if (actionMatch && actionMatch[1] && actionMatch[2] !== undefined) {
     const toolName = actionMatch[1];
     const argsString = actionMatch[2];
 
@@ -339,9 +338,9 @@ function parseActionArguments(argsString: string): Record<string, unknown> {
 }
 
 /**
- * Determine the target service based on model name
+ * Determine target service based on model name
  */
-function determineTargetService(modelName: string): 'openai_chat' | 'anthropic_claude' {
+export function determineTargetService(modelName: string): 'openai_chat' | 'anthropic_claude' {
   if (modelName.startsWith('gpt-') || modelName.includes('openai')) {
     return 'openai_chat';
   } else if (modelName.startsWith('claude-') || modelName.includes('anthropic')) {
