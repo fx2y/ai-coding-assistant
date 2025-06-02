@@ -2,11 +2,12 @@
  * Unit tests for Retrieval Service
  * Tests RFC-RET-001: Basic Vector Search Retrieval (P1-E3-S1)
  * Extended for P1-E3-S2: Result Hydration & Client Display
+ * Tests RFC-RET-002: LLM-based Re-ranking
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { performVectorSearch } from './retrievalService.js';
-import type { Env, EmbeddingModelConfig, CodeChunk } from '../types.js';
+import { performVectorSearch, rerankSearchResultsWithLLM } from './retrievalService.js';
+import type { Env, EmbeddingModelConfig, CodeChunk, VectorSearchResult, LlmRerankingConfig } from '../types.js';
 import * as byokProxyClient from '../lib/byokProxyClient.js';
 import * as vectorizeClient from '../lib/vectorizeClient.js';
 
@@ -132,27 +133,23 @@ describe('retrievalService', () => {
       expect(result.error).toBeUndefined();
       expect(result.results).toHaveLength(2);
 
-      expect(result.results![0]).toEqual({
-        chunk_id: 'chunk-1',
-        original_file_path: 'src/auth.js',
-        start_line: 10,
-        end_line: 25,
-        score: 0.95,
-        text_snippet: mockChunkText1,
-        language: 'javascript',
-        metadata: mockVectorizeResults.matches[0].metadata
-      });
+      expect(result.results?.[0]?.chunk_id).toBe('chunk-1');
+      expect(result.results?.[0]?.original_file_path).toBe('src/auth.js');
+      expect(result.results?.[0]?.start_line).toBe(10);
+      expect(result.results?.[0]?.end_line).toBe(25);
+      expect(result.results?.[0]?.score).toBe(0.95);
+      expect(result.results?.[0]?.text_snippet).toBe(mockChunkText1);
+      expect(result.results?.[0]?.language).toBe('javascript');
+      expect(result.results?.[0]?.metadata).toEqual(mockVectorizeResults.matches[0]!.metadata);
 
-      expect(result.results![1]).toEqual({
-        chunk_id: 'chunk-2',
-        original_file_path: 'src/login.js',
-        start_line: 25,
-        end_line: 40,
-        score: 0.87,
-        text_snippet: mockChunkText2,
-        language: 'javascript',
-        metadata: mockVectorizeResults.matches[1].metadata
-      });
+      expect(result.results?.[1]?.chunk_id).toBe('chunk-2');
+      expect(result.results?.[1]?.original_file_path).toBe('src/login.js');
+      expect(result.results?.[1]?.start_line).toBe(25);
+      expect(result.results?.[1]?.end_line).toBe(40);
+      expect(result.results?.[1]?.score).toBe(0.87);
+      expect(result.results?.[1]?.text_snippet).toBe(mockChunkText2);
+      expect(result.results?.[1]?.language).toBe('javascript');
+      expect(result.results?.[1]?.metadata).toEqual(mockVectorizeResults.matches[1]!.metadata);
 
       expect(result.timings.queryEmbeddingMs).toBeGreaterThanOrEqual(0);
       expect(result.timings.vectorSearchMs).toBeGreaterThanOrEqual(0);
@@ -225,8 +222,8 @@ describe('retrievalService', () => {
       // Should only return the successfully hydrated result
       expect(result.error).toBeUndefined();
       expect(result.results).toHaveLength(1);
-      expect(result.results![0].chunk_id).toBe('chunk-1');
-      expect(result.results![0].text_snippet).toBe(mockChunkText1);
+      expect(result.results?.[0]?.chunk_id).toBe('chunk-1');
+      expect(result.results?.[0]?.text_snippet).toBe(mockChunkText1);
     });
 
     it('should handle missing R2 chunk text gracefully during hydration', async () => {
@@ -344,8 +341,8 @@ describe('retrievalService', () => {
       // Should only return the successfully hydrated result
       expect(result.error).toBeUndefined();
       expect(result.results).toHaveLength(1);
-      expect(result.results![0].chunk_id).toBe('chunk-2');
-      expect(result.results![0].text_snippet).toBe(mockChunkText2);
+      expect(result.results?.[0]?.chunk_id).toBe('chunk-2');
+      expect(result.results?.[0]?.text_snippet).toBe(mockChunkText2);
     });
 
     it('should successfully perform vector search with valid inputs', async () => {
@@ -415,7 +412,7 @@ describe('retrievalService', () => {
         end_line: 25,
         score: 0.95,
         text_snippet: mockChunkText,
-        metadata: mockVectorizeResults.matches[0].metadata
+        metadata: mockVectorizeResults.matches[0]!.metadata
       });
       expect(result.timings.queryEmbeddingMs).toBeGreaterThanOrEqual(0);
       expect(result.timings.vectorSearchMs).toBeGreaterThanOrEqual(0);
@@ -655,12 +652,444 @@ describe('retrievalService', () => {
       // Verify graceful handling of missing metadata
       expect(result.error).toBeUndefined();
       expect(result.results).toHaveLength(1);
-      expect(result.results![0]).toEqual({
+      expect(result.results?.[0]).toEqual({
         chunk_id: 'chunk-1',
         original_file_path: 'unknown',
         start_line: 0,
         score: 0.95,
         metadata: undefined
+      });
+    });
+  });
+
+  describe('rerankSearchResultsWithLLM', () => {
+    let mockSearchResults: VectorSearchResult[];
+    let mockRerankingConfig: LlmRerankingConfig;
+
+    beforeEach(() => {
+      mockSearchResults = [
+        {
+          chunk_id: 'chunk1',
+          original_file_path: 'src/utils.ts',
+          start_line: 10,
+          end_line: 20,
+          score: 0.9,
+          text_snippet: 'function calculateSum(a: number, b: number) { return a + b; }',
+          language: 'typescript'
+        },
+        {
+          chunk_id: 'chunk2',
+          original_file_path: 'src/helpers.ts',
+          start_line: 5,
+          end_line: 15,
+          score: 0.8,
+          text_snippet: 'function formatString(str: string) { return str.trim(); }',
+          language: 'typescript'
+        },
+        {
+          chunk_id: 'chunk3',
+          original_file_path: 'src/api.ts',
+          start_line: 1,
+          end_line: 10,
+          score: 0.7,
+          text_snippet: 'async function fetchData(url: string) { return fetch(url); }',
+          language: 'typescript'
+        }
+      ];
+
+      mockRerankingConfig = {
+        service: 'openai_chat',
+        modelName: 'gpt-3.5-turbo',
+        temperature: 0.1,
+        maxTokens: 500,
+        maxResultsToRerank: 10
+      };
+    });
+
+    describe('edge cases', () => {
+      it('should handle empty search results', async () => {
+        const result = await rerankSearchResultsWithLLM(
+          mockEnv,
+          'test query',
+          [],
+          'test-api-key',
+          mockRerankingConfig
+        );
+
+        expect(result).toEqual({
+          rerankedResults: [],
+          originalResultCount: 0,
+          rerankedResultCount: 0,
+          llmCallTimeMs: 0,
+          success: true
+        });
+      });
+
+      it('should return original results for single result', async () => {
+        const singleResult = [mockSearchResults[0]!];
+        
+        const result = await rerankSearchResultsWithLLM(
+          mockEnv,
+          'test query',
+          singleResult,
+          'test-api-key',
+          mockRerankingConfig
+        );
+
+        expect(result).toEqual({
+          rerankedResults: singleResult,
+          originalResultCount: 1,
+          rerankedResultCount: 1,
+          llmCallTimeMs: 0,
+          success: true
+        });
+
+        // For single result, should return the same result unchanged
+        expect(result.rerankedResults[0]!.chunk_id).toBe('chunk1');
+        expect(result.rerankedResults).toHaveLength(1);
+      });
+    });
+
+    describe('successful re-ranking', () => {
+      it('should successfully re-rank results based on LLM response', async () => {
+        // Mock successful LLM response with reordered IDs
+        const mockChatResponse = {
+          id: 'test-completion',
+          object: 'chat.completion',
+          created: Date.now(),
+          model: 'gpt-3.5-turbo',
+          choices: [{
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: '["chunk3", "chunk1", "chunk2"]'
+            },
+            finish_reason: 'stop'
+          }],
+          usage: {
+            prompt_tokens: 100,
+            completion_tokens: 20,
+            total_tokens: 120
+          }
+        };
+
+        vi.mocked(byokProxyClient.getChatCompletionViaProxy).mockResolvedValue(mockChatResponse);
+        vi.mocked(byokProxyClient.isChatCompletionError).mockReturnValue(false);
+
+        const result = await rerankSearchResultsWithLLM(
+          mockEnv,
+          'fetch data from API',
+          mockSearchResults,
+          'test-api-key',
+          mockRerankingConfig
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.rerankedResults).toHaveLength(3);
+        expect(result.rerankedResults[0]!.chunk_id).toBe('chunk3'); // API-related chunk first
+        expect(result.rerankedResults[1]!.chunk_id).toBe('chunk1');
+        expect(result.rerankedResults[2]!.chunk_id).toBe('chunk2');
+        expect(result.originalResultCount).toBe(3);
+        expect(result.rerankedResultCount).toBe(3);
+        expect(result.llmCallTimeMs).toBeGreaterThanOrEqual(0);
+      });
+
+      it('should handle partial LLM response and append missing results', async () => {
+        // Mock LLM response with only 2 out of 3 IDs
+        const mockChatResponse = {
+          id: 'test-completion',
+          object: 'chat.completion',
+          created: Date.now(),
+          model: 'gpt-3.5-turbo',
+          choices: [{
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: '["chunk2", "chunk3"]'
+            },
+            finish_reason: 'stop'
+          }]
+        };
+
+        vi.mocked(byokProxyClient.getChatCompletionViaProxy).mockResolvedValue(mockChatResponse);
+        vi.mocked(byokProxyClient.isChatCompletionError).mockReturnValue(false);
+
+        const result = await rerankSearchResultsWithLLM(
+          mockEnv,
+          'test query',
+          mockSearchResults,
+          'test-api-key',
+          mockRerankingConfig
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.rerankedResults).toHaveLength(3);
+        expect(result.rerankedResults[0]!.chunk_id).toBe('chunk2'); // LLM ranked first
+        expect(result.rerankedResults[1]!.chunk_id).toBe('chunk3'); // LLM ranked second
+        expect(result.rerankedResults[2]!.chunk_id).toBe('chunk1'); // Missing from LLM, appended
+      });
+
+      it('should respect maxResultsToRerank limit', async () => {
+        const configWithLimit = { ...mockRerankingConfig, maxResultsToRerank: 2 };
+        
+        const mockChatResponse = {
+          id: 'test-completion',
+          object: 'chat.completion',
+          created: Date.now(),
+          model: 'gpt-3.5-turbo',
+          choices: [{
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: '["chunk2", "chunk1"]'
+            },
+            finish_reason: 'stop'
+          }]
+        };
+
+        vi.mocked(byokProxyClient.getChatCompletionViaProxy).mockResolvedValue(mockChatResponse);
+        vi.mocked(byokProxyClient.isChatCompletionError).mockReturnValue(false);
+
+        const result = await rerankSearchResultsWithLLM(
+          mockEnv,
+          'test query',
+          mockSearchResults,
+          'test-api-key',
+          configWithLimit
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.rerankedResults).toHaveLength(3);
+        expect(result.rerankedResults[0]!.chunk_id).toBe('chunk2'); // Re-ranked
+        expect(result.rerankedResults[1]!.chunk_id).toBe('chunk1'); // Re-ranked
+        expect(result.rerankedResults[2]!.chunk_id).toBe('chunk3'); // Beyond limit, appended
+        expect(result.originalResultCount).toBe(3);
+        expect(result.rerankedResultCount).toBe(3);
+        expect(result.llmCallTimeMs).toBeGreaterThanOrEqual(0);
+      });
+    });
+
+    describe('error handling', () => {
+      it('should handle LLM API errors gracefully', async () => {
+        const mockError = {
+          error: {
+            status: 500,
+            message: 'Internal server error',
+            data: {}
+          }
+        };
+
+        vi.mocked(byokProxyClient.getChatCompletionViaProxy).mockResolvedValue(mockError);
+        vi.mocked(byokProxyClient.isChatCompletionError).mockReturnValue(true);
+
+        const result = await rerankSearchResultsWithLLM(
+          mockEnv,
+          'test query',
+          mockSearchResults,
+          'test-api-key',
+          mockRerankingConfig
+        );
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('LLM call failed');
+        expect(result.rerankedResults).toEqual(mockSearchResults); // Original results returned
+        expect(result.llmCallTimeMs).toBeGreaterThanOrEqual(0);
+      });
+
+      it('should handle invalid JSON response from LLM', async () => {
+        const mockChatResponse = {
+          id: 'test-completion',
+          object: 'chat.completion',
+          created: Date.now(),
+          model: 'gpt-3.5-turbo',
+          choices: [{
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: 'This is not valid JSON'
+            },
+            finish_reason: 'stop'
+          }]
+        };
+
+        vi.mocked(byokProxyClient.getChatCompletionViaProxy).mockResolvedValue(mockChatResponse);
+        vi.mocked(byokProxyClient.isChatCompletionError).mockReturnValue(false);
+
+        const result = await rerankSearchResultsWithLLM(
+          mockEnv,
+          'test query',
+          mockSearchResults,
+          'test-api-key',
+          mockRerankingConfig
+        );
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('Invalid JSON response from LLM');
+        expect(result.rerankedResults).toEqual(mockSearchResults);
+      });
+
+      it('should handle non-array response from LLM', async () => {
+        const mockChatResponse = {
+          id: 'test-completion',
+          object: 'chat.completion',
+          created: Date.now(),
+          model: 'gpt-3.5-turbo',
+          choices: [{
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: '{"not": "an array"}'
+            },
+            finish_reason: 'stop'
+          }]
+        };
+
+        vi.mocked(byokProxyClient.getChatCompletionViaProxy).mockResolvedValue(mockChatResponse);
+        vi.mocked(byokProxyClient.isChatCompletionError).mockReturnValue(false);
+
+        const result = await rerankSearchResultsWithLLM(
+          mockEnv,
+          'test query',
+          mockSearchResults,
+          'test-api-key',
+          mockRerankingConfig
+        );
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('LLM response is not an array of strings');
+        expect(result.rerankedResults).toEqual(mockSearchResults);
+      });
+
+      it('should handle empty LLM response', async () => {
+        const mockChatResponse = {
+          id: 'test-completion',
+          object: 'chat.completion',
+          created: Date.now(),
+          model: 'gpt-3.5-turbo',
+          choices: [{
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: ''
+            },
+            finish_reason: 'stop'
+          }]
+        };
+
+        vi.mocked(byokProxyClient.getChatCompletionViaProxy).mockResolvedValue(mockChatResponse);
+        vi.mocked(byokProxyClient.isChatCompletionError).mockReturnValue(false);
+
+        const result = await rerankSearchResultsWithLLM(
+          mockEnv,
+          'test query',
+          mockSearchResults,
+          'test-api-key',
+          mockRerankingConfig
+        );
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('Empty response from LLM');
+        expect(result.rerankedResults).toEqual(mockSearchResults);
+      });
+
+      it('should handle network errors', async () => {
+        vi.mocked(byokProxyClient.getChatCompletionViaProxy).mockRejectedValue(new Error('Network timeout'));
+
+        const result = await rerankSearchResultsWithLLM(
+          mockEnv,
+          'test query',
+          mockSearchResults,
+          'test-api-key',
+          mockRerankingConfig
+        );
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('Unexpected error: Network timeout');
+        expect(result.rerankedResults).toEqual(mockSearchResults);
+      });
+
+      it('should handle invalid result IDs from LLM', async () => {
+        const mockChatResponse = {
+          id: 'test-completion',
+          object: 'chat.completion',
+          created: Date.now(),
+          model: 'gpt-3.5-turbo',
+          choices: [{
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: '["invalid_id1", "invalid_id2"]'
+            },
+            finish_reason: 'stop'
+          }]
+        };
+
+        vi.mocked(byokProxyClient.getChatCompletionViaProxy).mockResolvedValue(mockChatResponse);
+        vi.mocked(byokProxyClient.isChatCompletionError).mockReturnValue(false);
+
+        const result = await rerankSearchResultsWithLLM(
+          mockEnv,
+          'test query',
+          mockSearchResults,
+          'test-api-key',
+          mockRerankingConfig
+        );
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('No valid result IDs returned by LLM');
+        expect(result.rerankedResults).toEqual(mockSearchResults);
+      });
+    });
+
+    describe('prompt construction', () => {
+      it('should call LLM with properly formatted prompt', async () => {
+        const mockChatResponse = {
+          id: 'test-completion',
+          object: 'chat.completion',
+          created: Date.now(),
+          model: 'gpt-3.5-turbo',
+          choices: [{
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: '["chunk1", "chunk2", "chunk3"]'
+            },
+            finish_reason: 'stop'
+          }]
+        };
+
+        vi.mocked(byokProxyClient.getChatCompletionViaProxy).mockResolvedValue(mockChatResponse);
+        vi.mocked(byokProxyClient.isChatCompletionError).mockReturnValue(false);
+
+        await rerankSearchResultsWithLLM(
+          mockEnv,
+          'find function to calculate sum',
+          mockSearchResults,
+          'test-api-key',
+          mockRerankingConfig
+        );
+
+        expect(byokProxyClient.getChatCompletionViaProxy).toHaveBeenCalledWith(
+          fetch,
+          'openai_chat',
+          'test-api-key',
+          expect.objectContaining({
+            model: 'gpt-3.5-turbo',
+            messages: expect.arrayContaining([
+              expect.objectContaining({
+                role: 'system',
+                content: expect.stringContaining('find function to calculate sum')
+              }),
+              expect.objectContaining({
+                role: 'user',
+                content: expect.stringContaining('chunk1')
+              })
+            ]),
+            temperature: 0.1,
+            max_tokens: 500
+          }),
+          mockEnv.PROXY_WORKER_URL
+        );
       });
     });
   });

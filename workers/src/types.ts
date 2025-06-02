@@ -253,26 +253,33 @@ export type EmbeddingGenerationRequest = z.infer<typeof EmbeddingGenerationReque
 // Vector search types (P1-E3-S1, RFC-CTX-001, RFC-CTX-002)
 export const VectorSearchRequestSchema = z.object({
   project_id: z.string().uuid('Invalid project ID format'),
-  query_text: z.string().min(1, 'Query text is required'),
+  query_text: z.string().min(1, 'Query text cannot be empty'),
   user_api_keys: z.object({
-    embeddingKey: z.string().min(1, 'Embedding API key is required')
+    embeddingKey: z.string().min(1, 'Embedding API key is required'),
+    llmKey: z.string().min(1, 'LLM API key is required').optional() // Optional for re-ranking
   }),
   embedding_model_config: z.object({
-    service: z.enum([
-      'openai_embedding',
-      'jina_embedding',
-      'cohere_embed'
-    ]),
-    modelName: z.string().optional()
+    service: z.enum(['openai_embedding', 'jina_embedding', 'cohere_embed']),
+    modelName: z.string().optional(),
+    dimensions: z.number().int().positive().optional(),
+    batchSize: z.number().int().positive().optional()
   }),
   top_k: z.number().int().min(1).max(50).optional().default(10),
-  // RFC-CTX-001: Explicit context support
+  // Context-related fields (RFC-CTX-001, RFC-CTX-002)
   explicit_context_paths: z.array(z.string()).optional().default([]),
   pinned_item_ids: z.array(z.string()).optional().default([]),
   include_pinned: z.boolean().optional().default(true),
-  // RFC-CTX-002: Implicit context support
   implicit_context: z.object({
     last_focused_file_path: z.string().optional()
+  }).optional(),
+  // Re-ranking configuration (RFC-RET-002)
+  enable_reranking: z.boolean().optional().default(false),
+  reranking_config: z.object({
+    service: z.enum(['openai_chat', 'anthropic_claude', 'cohere_generate']),
+    modelName: z.string(),
+    temperature: z.number().min(0).max(2).optional().default(0.1),
+    maxTokens: z.number().int().positive().optional().default(500),
+    maxResultsToRerank: z.number().int().min(2).max(20).optional().default(10)
   }).optional()
 });
 
@@ -569,4 +576,22 @@ export interface ApplyDiffResponse {
   success: boolean;
   message: string;
   new_content?: string;
+}
+
+// LLM Re-ranking types (RFC-RET-002)
+export interface LlmRerankingConfig {
+  service: SupportedExternalService; // e.g., 'openai_chat', 'anthropic_claude'
+  modelName: string; // e.g., 'gpt-3.5-turbo', 'claude-3-haiku-20240307'
+  temperature?: number;
+  maxTokens?: number;
+  maxResultsToRerank?: number; // Limit results sent to LLM for cost control
+}
+
+export interface RerankingResult {
+  rerankedResults: VectorSearchResult[];
+  originalResultCount: number;
+  rerankedResultCount: number;
+  llmCallTimeMs: number;
+  success: boolean;
+  error?: string;
 }
