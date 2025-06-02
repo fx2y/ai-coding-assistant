@@ -4,11 +4,11 @@
  * Implements RFC-AGT-004: Structured Prompting & Agent Control
  */
 
-import type { 
-  Env, 
-  ValidatedReactStepRequest, 
-  ReactStepResponse, 
-  AgentTurn, 
+import type {
+  Env,
+  ValidatedReactStepRequest,
+  ReactStepResponse,
+  AgentTurn,
   ActionDetails,
   ChatMessage,
   ChatCompletionRequest
@@ -18,7 +18,7 @@ import { getChatCompletionViaProxy, isChatCompletionError } from '../lib/byokPro
 import { getModelConfig } from '../lib/tokenizer.js';
 
 /**
- * Performs a single ReAct step: Reason (LLM generates thought + action) 
+ * Performs a single ReAct step: Reason (LLM generates thought + action)
  * Implements RFC-AGT-001 and RFC-AGT-004
  */
 export async function performReActStep(
@@ -26,7 +26,7 @@ export async function performReActStep(
   requestPayload: ValidatedReactStepRequest
 ): Promise<ReactStepResponse> {
   const startTime = Date.now();
-  
+
   try {
     console.log(`[AgentService] Starting ReAct step for session ${requestPayload.session_id}`, {
       projectId: requestPayload.project_id,
@@ -37,19 +37,19 @@ export async function performReActStep(
 
     // 1. Build Context-Rich Prompt for LLM
     const llmConfig = getModelConfig(requestPayload.llm_config.modelName);
-    
+
     // Override with user-provided config
     llmConfig.tokenLimit = requestPayload.llm_config.tokenLimit;
     llmConfig.reservedOutputTokens = requestPayload.llm_config.reservedOutputTokens;
 
     const systemPrompt = buildReActSystemPrompt(requestPayload.available_tools_prompt_segment);
-    
+
     // Prepare implicit context with proper typing
     const implicitContext: { last_focused_file_path?: string } = {};
     if (requestPayload.implicit_context?.last_focused_file_path) {
       implicitContext.last_focused_file_path = requestPayload.implicit_context.last_focused_file_path;
     }
-    
+
     const contextResult = await buildManagedPromptContext(
       env,
       requestPayload.project_id,
@@ -90,7 +90,7 @@ export async function performReActStep(
 
     const targetService = determineTargetService(requestPayload.llm_config.modelName);
     const proxyUrl = '/api/proxy/external'; // Internal worker call
-    
+
     const llmResult = await getChatCompletionViaProxy(
       fetch,
       targetService,
@@ -135,10 +135,10 @@ export async function performReActStep(
     });
 
     const parseResult = parseReActResponse(llmResponseText);
-    
+
     // 5. Update Conversation History
     const newTurns: AgentTurn[] = [];
-    
+
     // Add the user query as a turn if it's not empty
     if (requestPayload.user_query.trim()) {
       newTurns.push({
@@ -195,7 +195,7 @@ export async function performReActStep(
 
   } catch (error) {
     console.error(`[AgentService] ReAct step failed:`, error);
-    
+
     return {
       session_id: requestPayload.session_id,
       thought: '',
@@ -262,11 +262,11 @@ function parseReActResponse(llmResponse: string): {
   if (actionMatch) {
     const toolName = actionMatch[1];
     const argsString = actionMatch[2];
-    
+
     try {
       // Parse arguments - simple key=value parser
       const toolArgs = parseActionArguments(argsString);
-      
+
       actionDetails = {
         tool_name: toolName,
         tool_args: toolArgs,
@@ -285,7 +285,7 @@ function parseReActResponse(llmResponse: string): {
     if (thoughtIndex !== -1) {
       const thoughtEndIndex = thoughtIndex + 'Thought:'.length + thought.length;
       const remainingText = llmResponse.substring(thoughtEndIndex).trim();
-      
+
       if (remainingText && !remainingText.startsWith('Action:')) {
         directResponse = remainingText;
       }
@@ -304,7 +304,7 @@ function parseReActResponse(llmResponse: string): {
  */
 function parseActionArguments(argsString: string): Record<string, unknown> {
   const args: Record<string, unknown> = {};
-  
+
   if (!argsString.trim()) {
     return args;
   }
@@ -312,15 +312,15 @@ function parseActionArguments(argsString: string): Record<string, unknown> {
   // Simple regex to match key="value" or key='value' patterns
   const argRegex = /(\w+)\s*=\s*["']([^"']*?)["']/g;
   let match;
-  
+
   while ((match = argRegex.exec(argsString)) !== null) {
     const key = match[1];
     const value = match[2];
-    
+
     if (!key || value === undefined) {
       continue;
     }
-    
+
     // Try to parse as number or boolean, otherwise keep as string
     if (value === 'true') {
       args[key] = true;
@@ -347,7 +347,7 @@ function determineTargetService(modelName: string): 'openai_chat' | 'anthropic_c
   } else if (modelName.startsWith('claude-') || modelName.includes('anthropic')) {
     return 'anthropic_claude';
   }
-  
+
   // Default to OpenAI for unknown models
   return 'openai_chat';
-} 
+}

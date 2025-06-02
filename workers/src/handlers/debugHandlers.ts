@@ -13,9 +13,9 @@ import type { Env, ApiResponse } from '../types.js';
 export async function getVectorizeInfo(c: Context<{ Bindings: Env }>): Promise<Response> {
   try {
     const { getIndexInfo } = await import('../lib/vectorizeClient.js');
-    
+
     const indexInfo = await getIndexInfo(c.env.VECTORIZE_INDEX);
-    
+
     const response: ApiResponse<any> = {
       success: true,
       data: {
@@ -25,10 +25,10 @@ export async function getVectorizeInfo(c: Context<{ Bindings: Env }>): Promise<R
     };
 
     return c.json(response);
-    
+
   } catch (error) {
     console.error('Failed to get Vectorize index info:', error);
-    
+
     const response: ApiResponse = {
       success: false,
       error: {
@@ -66,7 +66,7 @@ export async function testVectorizeQuery(c: Context<{ Bindings: Env }>): Promise
     const testVector = new Array(1536).fill(0).map(() => Math.random() * 0.1); // Random small values for testing
 
     const { queryVectors } = await import('../lib/vectorizeClient.js');
-    
+
     const queryResult = await queryVectors(
       c.env.VECTORIZE_INDEX,
       testVector,
@@ -89,10 +89,10 @@ export async function testVectorizeQuery(c: Context<{ Bindings: Env }>): Promise
     };
 
     return c.json(response);
-    
+
   } catch (error) {
     console.error('Failed to test Vectorize query:', error);
-    
+
     const response: ApiResponse = {
       success: false,
       error: {
@@ -103,4 +103,4 @@ export async function testVectorizeQuery(c: Context<{ Bindings: Env }>): Promise
 
     return c.json(response, 500);
   }
-} 
+}

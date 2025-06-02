@@ -14,26 +14,26 @@ import { buildPromptContext, parseExplicitTags } from '../services/contextBuilde
 /**
  * Handle vector query search requests with explicit and implicit context support
  * POST /api/search/vector_query
- * 
+ *
  * Implements RFC-RET-001: Basic Vector Search Retrieval
  * Implements RFC-CTX-001: Explicit Context Management
  * Implements RFC-CTX-002: Implicit Context Integration
  */
 export async function handleVectorQuery(c: Context<{ Bindings: Env; Variables: { requestId: string } }>): Promise<Response> {
   const requestId = c.get('requestId');
-  
+
   try {
     // Parse and validate request body
     const body = await c.req.json();
     const validationResult = VectorSearchRequestSchema.safeParse(body);
-    
+
     if (!validationResult.success) {
       console.error(`Vector query validation failed`, {
         requestId,
         errors: validationResult.error.errors,
         body: JSON.stringify(body, null, 2)
       });
-      
+
       return c.json({
         error: 'ValidationError',
         message: 'Invalid request body',
@@ -69,7 +69,7 @@ export async function handleVectorQuery(c: Context<{ Bindings: Env; Variables: {
     // Parse @tags from query if explicit_context_paths is empty
     let finalExplicitPaths = explicit_context_paths;
     let finalQueryText = query_text;
-    
+
     if (explicit_context_paths.length === 0) {
       const parsed = parseExplicitTags(query_text);
       finalExplicitPaths = parsed.explicitPaths;
@@ -96,7 +96,7 @@ export async function handleVectorQuery(c: Context<{ Bindings: Env; Variables: {
       });
 
       const statusCode = searchResult.error.code === 'EMBEDDING_GENERATION_FAILED' ? 502 : 500;
-      
+
       return c.json({
         error: searchResult.error.code || 'VectorSearchError',
         message: searchResult.error.message,
@@ -183,4 +183,4 @@ export async function handleVectorQuery(c: Context<{ Bindings: Env; Variables: {
       requestId
     }, 500);
   }
-} 
+}

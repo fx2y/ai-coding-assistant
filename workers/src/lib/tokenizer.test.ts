@@ -4,13 +4,13 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { 
-  countTokens, 
-  getModelConfig, 
-  getAvailablePromptTokens, 
+import {
+  countTokens,
+  getModelConfig,
+  getAvailablePromptTokens,
   estimateCharsForTokens,
   MODEL_CONFIGS,
-  type LLMModelConfig 
+  type LLMModelConfig
 } from './tokenizer.js';
 
 describe('Tokenizer Service', () => {
@@ -55,7 +55,7 @@ describe('Tokenizer Service', () => {
         reservedOutputTokens: 1000,
         provider: 'openai'
       };
-      
+
       expect(getAvailablePromptTokens(config)).toBe(3096);
     });
 
@@ -66,7 +66,7 @@ describe('Tokenizer Service', () => {
         reservedOutputTokens: 1500,
         provider: 'openai'
       };
-      
+
       expect(getAvailablePromptTokens(config)).toBe(0);
     });
   });
@@ -92,9 +92,9 @@ describe('Tokenizer Service', () => {
     it('should count tokens using heuristic for OpenAI models', async () => {
       const config = getModelConfig('gpt-4');
       const text = 'Hello world, this is a test message.';
-      
+
       const result = await countTokens(text, config);
-      
+
       expect(result.method).toBe('heuristic');
       expect(result.confidence).toBe('medium');
       expect(result.tokenCount).toBeGreaterThan(0);
@@ -104,9 +104,9 @@ describe('Tokenizer Service', () => {
     it('should count tokens using heuristic for Anthropic models', async () => {
       const config = getModelConfig('claude-3-sonnet');
       const text = 'Hello world, this is a test message for Claude.';
-      
+
       const result = await countTokens(text, config);
-      
+
       expect(result.method).toBe('heuristic');
       expect(result.confidence).toBe('medium');
       expect(result.tokenCount).toBeGreaterThan(0);
@@ -115,14 +115,14 @@ describe('Tokenizer Service', () => {
     it('should handle empty text', async () => {
       const config = getModelConfig('gpt-4');
       const result = await countTokens('', config);
-      
+
       expect(result.tokenCount).toBe(0);
     });
 
     it('should handle very short text', async () => {
       const config = getModelConfig('gpt-4');
       const result = await countTokens('Hi', config);
-      
+
       expect(result.tokenCount).toBeGreaterThanOrEqual(1);
     });
 
@@ -134,9 +134,9 @@ function hello() {
   return true;
 }
       `.trim();
-      
+
       const result = await countTokens(codeText, config);
-      
+
       expect(result.tokenCount).toBeGreaterThan(10);
       expect(result.method).toBe('heuristic');
     });
@@ -145,9 +145,9 @@ function hello() {
       const config = getModelConfig('gpt-4');
       const text = 'one two three four five';
       const wordCount = text.split(/\s+/).length;
-      
+
       const result = await countTokens(text, config);
-      
+
       expect(result.tokenCount).toBeGreaterThanOrEqual(wordCount);
     });
   });
@@ -180,4 +180,4 @@ function hello() {
       expect(MODEL_CONFIGS['command']?.provider).toBe('cohere');
     });
   });
-}); 
+});

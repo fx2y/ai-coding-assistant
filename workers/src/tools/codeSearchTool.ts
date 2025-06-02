@@ -79,7 +79,7 @@ export async function executeCodeSearch(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`[CodeSearchTool] Unexpected error:`, error);
-    
+
     return {
       tool_output: '',
       error: `Code search tool failed: ${errorMessage}`
@@ -92,16 +92,16 @@ export async function executeCodeSearch(
  */
 function formatSearchResults(query: string, results: VectorSearchResult[]): string {
   const header = `Found ${results.length} code snippet${results.length === 1 ? '' : 's'} for query: "${query}"\n\n`;
-  
+
   const formattedResults = results.map((result, index) => {
-    const lineInfo = result.end_line 
+    const lineInfo = result.end_line
       ? `Lines ${result.start_line}-${result.end_line}`
       : `Line ${result.start_line}`;
-    
+
     const scoreInfo = `Score: ${result.score.toFixed(3)}`;
-    
+
     const languageTag = result.language || 'text';
-    
+
     return [
       `${index + 1}. **${result.original_file_path}** (${lineInfo}, ${scoreInfo})`,
       '```' + languageTag,
@@ -111,4 +111,4 @@ function formatSearchResults(query: string, results: VectorSearchResult[]): stri
   }).join('\n\n');
 
   return header + formattedResults;
-} 
+}

@@ -6,6 +6,7 @@
 import type { Env, EmbeddingModelConfig } from '../types.js';
 import { executeCodeSearch, type CodeSearchArgs } from '../tools/codeSearchTool.js';
 import { executeReadFile, type ReadFileArgs } from '../tools/readFileTool.js';
+import { executeGenerateCodeEdit, type GenerateEditArgs, type LLMConfig } from '../tools/generateEditTool.js';
 
 export interface ToolExecutionContext {
   env: Env;
@@ -15,6 +16,7 @@ export interface ToolExecutionContext {
     llmKey?: string;
   };
   embeddingModelConfig?: EmbeddingModelConfig;
+  llmConfig?: LLMConfig;
 }
 
 export interface ToolExecutionResult {
@@ -116,10 +118,70 @@ export async function executeToolByName(
         };
       }
 
+      case 'generate_code_edit': {
+        // Validate required context for code edit generation
+        if (!context.userApiKeys.llmKey) {
+          return {
+            observation: 'Error: LLM API key is required for generate_code_edit',
+            isError: true
+          };
+        }
+
+        if (!context.llmConfig) {
+          return {
+            observation: 'Error: LLM configuration is required for generate_code_edit',
+            isError: true
+          };
+        }
+
+        // Validate and cast tool arguments
+        const generateEditArgs = validateGenerateEditArgs(toolArgs);
+        if (!generateEditArgs) {
+          return {
+            observation: 'Error: Invalid arguments for generate_code_edit. Expected: { file_path: string, edit_instructions: string, original_code_snippet?: string }',
+            isError: true
+          };
+        }
+
+        const generateEditResult = await executeGenerateCodeEdit(
+          context.env,
+          context.projectId,
+          generateEditArgs,
+          { llmKey: context.userApiKeys.llmKey },
+          context.llmConfig
+        );
+
+        if (generateEditResult.error) {
+          return {
+            observation: `Error in generate_code_edit: ${generateEditResult.error}`,
+            isError: true
+          };
+        }
+
+        if (!generateEditResult.tool_output) {
+          return {
+            observation: 'Error: generate_code_edit returned no output',
+            isError: true
+          };
+        }
+
+        // Format observation for LLM consumption
+        const observation = `Diff generated for file "${generateEditResult.tool_output.file_path}":
+\`\`\`diff
+${generateEditResult.tool_output.diff_string}
+\`\`\`
+You can now propose to apply this diff using another tool, or ask the user for confirmation.`;
+
+        return {
+          observation,
+          isError: false
+        };
+      }
+
       default:
         console.warn(`[ToolExecutor] Unknown tool: ${toolName}`);
         return {
-          observation: `Error: Unknown tool '${toolName}'. Available tools: code_search, read_file`,
+          observation: `Error: Unknown tool '${toolName}'. Available tools: code_search, read_file, generate_code_edit`,
           isError: true
         };
     }
@@ -127,7 +189,7 @@ export async function executeToolByName(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`[ToolExecutor] Tool execution failed:`, error);
-    
+
     return {
       observation: `Error: Tool execution failed: ${errorMessage}`,
       isError: true
@@ -162,6 +224,34 @@ function validateReadFileArgs(args: Record<string, unknown>): ReadFileArgs | nul
 }
 
 /**
+ * Validates and casts arguments for generate_code_edit tool
+ */
+function validateGenerateEditArgs(args: Record<string, unknown>): GenerateEditArgs | null {
+  if (typeof args.file_path !== 'string' || !args.file_path.trim()) {
+    return null;
+  }
+
+  if (typeof args.edit_instructions !== 'string' || !args.edit_instructions.trim()) {
+    return null;
+  }
+
+  const result: GenerateEditArgs = {
+    file_path: args.file_path.trim(),
+    edit_instructions: args.edit_instructions.trim()
+  };
+
+  // Optional original_code_snippet
+  if (args.original_code_snippet !== undefined) {
+    if (typeof args.original_code_snippet !== 'string') {
+      return null;
+    }
+    result.original_code_snippet = args.original_code_snippet;
+  }
+
+  return result;
+}
+
+/**
  * Generates the tool manifest prompt segment for available tools
  * This describes the tools available to the LLM
  */
@@ -176,12 +266,18 @@ export function generateToolManifestPrompt(): string {
    - Use this when you need to see the complete implementation of a file or understand the full context
    - Example: read_file(file_path="src/models/user.py")
 
+3. **generate_code_edit(file_path: string, edit_instructions: string, original_code_snippet?: string)**: Generates a code modification diff for the specified file based on edit instructions. Optionally, provide original_code_snippet for context; if not, the whole file will be used. Returns a diff string in unified format.
+   - Use this when you need to modify existing code based on user requirements
+   - Example: generate_code_edit(file_path="src/utils.js", edit_instructions="rename function foo to bar")
+   - Example: generate_code_edit(file_path="src/auth.ts", edit_instructions="add null check before user.email access", original_code_snippet="function validateUser(user) { return user.email.includes('@'); }")
+
 To use a tool, output on a new line:
 Action: tool_name(param1="value1", param2="value2")
 
 Examples:
 Action: code_search(query="error handling middleware")
 Action: read_file(file_path="workers/src/index.ts")
+Action: generate_code_edit(file_path="src/utils.js", edit_instructions="add error handling to the parseData function")
 
 After using a tool, you will receive an observation with the tool's output. Use this information to continue your reasoning and provide helpful responses.`;
-} 
+}

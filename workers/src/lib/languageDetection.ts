@@ -90,7 +90,7 @@ const EXTENSION_TO_LANGUAGE: Record<string, SupportedLanguage> = {
  */
 export function detectLanguageFromPath(filePath: string): SupportedLanguage {
   const extension = filePath.split('.').pop()?.toLowerCase();
-  
+
   if (!extension) {
     return 'text';
   }
@@ -104,10 +104,10 @@ export function detectLanguageFromPath(filePath: string): SupportedLanguage {
 export function detectLanguageFromContent(content: string, filePath: string): SupportedLanguage {
   // Start with extension-based detection
   const extensionLanguage = detectLanguageFromPath(filePath);
-  
+
   // For ambiguous cases, use content patterns
   const firstLine = content.split('\n')[0]?.trim() || '';
-  
+
   // Shebang detection
   if (firstLine.startsWith('#!')) {
     if (firstLine.includes('python')) return 'python';
@@ -119,7 +119,7 @@ export function detectLanguageFromContent(content: string, filePath: string): Su
 
   // Content-based patterns for common languages
   const contentLower = content.toLowerCase();
-  
+
   // JavaScript/TypeScript patterns
   if (extensionLanguage === 'text' && (
     content.includes('function ') ||
@@ -215,8 +215,8 @@ export function getLanguageCommentPatterns(language: SupportedLanguage): {
     case 'yaml':
       return {
         singleLine: ['#'],
-        multiLineStart: ['"""', "'''"],
-        multiLineEnd: ['"""', "'''"]
+        multiLineStart: ['"""', '\'\'\''],
+        multiLineEnd: ['"""', '\'\'\'']
       };
 
     case 'ruby':
@@ -247,4 +247,4 @@ export function getLanguageCommentPatterns(language: SupportedLanguage): {
         multiLineEnd: []
       };
   }
-} 
+}

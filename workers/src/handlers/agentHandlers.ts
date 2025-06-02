@@ -79,7 +79,7 @@ export async function handleAgentReactStep(c: Context<{ Bindings: Env }>): Promi
  */
 export async function handleToolExecution(c: Context<{ Bindings: Env }>): Promise<Response> {
   const startTime = Date.now();
-  
+
   try {
     console.log(`[AgentHandlers] Starting tool execution request`);
 
@@ -157,4 +157,4 @@ export async function handleToolExecution(c: Context<{ Bindings: Env }>): Promis
       details: errorMessage
     }, 500);
   }
-} 
+}

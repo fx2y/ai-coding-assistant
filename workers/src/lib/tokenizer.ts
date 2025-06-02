@@ -1,7 +1,7 @@
 /**
  * Tokenizer Service
  * Implements RFC-CTX-003: Dynamic Context Window Management
- * 
+ *
  * Provides token counting capabilities with tiktoken-rs WASM support
  * and fallback heuristics for different LLM models.
  */
@@ -73,7 +73,7 @@ export const MODEL_CONFIGS: Record<string, LLMModelConfig> = {
     encoding: 'o200k_base',
     provider: 'openai'
   },
-  
+
   // Anthropic Models
   'claude-3-haiku': {
     modelName: 'claude-3-haiku',
@@ -93,7 +93,7 @@ export const MODEL_CONFIGS: Record<string, LLMModelConfig> = {
     reservedOutputTokens: 4000,
     provider: 'anthropic'
   },
-  
+
   // Cohere Models
   'command': {
     modelName: 'command',
@@ -130,7 +130,7 @@ async function initializeTiktoken(): Promise<boolean> {
     // 1. Loading the WASM module
     // 2. Initializing the tiktoken bindings
     // 3. Caching the module for reuse
-    
+
     // For now, return false to use heuristic fallback
     console.log('[Tokenizer] tiktoken-rs WASM not yet implemented, using heuristic fallback');
     return false;
@@ -148,13 +148,13 @@ async function getTiktokenEncoder(encoding: string): Promise<TiktokenEncoder | n
     const initialized = await initializeTiktoken();
     if (!initialized) return null;
   }
-  
+
   if (!tiktokenModule) return null;
-  
+
   if (encoderCache.has(encoding)) {
     return encoderCache.get(encoding)!;
   }
-  
+
   try {
     const encoder = tiktokenModule.get_encoding(encoding);
     encoderCache.set(encoding, encoder);
@@ -171,7 +171,7 @@ async function getTiktokenEncoder(encoding: string): Promise<TiktokenEncoder | n
 async function countTokensWithTiktoken(text: string, encoding: string): Promise<number | null> {
   const encoder = await getTiktokenEncoder(encoding);
   if (!encoder) return null;
-  
+
   try {
     const tokens = encoder.encode(text);
     return tokens.length;
@@ -188,10 +188,10 @@ async function countTokensWithTiktoken(text: string, encoding: string): Promise<
 function countTokensHeuristic(text: string, provider: string): TokenCountResult {
   const charCount = text.length;
   const wordCount = text.split(/\s+/).filter(word => word.length > 0).length;
-  
+
   let tokenCount: number;
   let confidence: 'high' | 'medium' | 'low';
-  
+
   switch (provider) {
     case 'openai':
       // OpenAI: ~4 chars per token for English text, ~3.5 for code
@@ -199,28 +199,28 @@ function countTokensHeuristic(text: string, provider: string): TokenCountResult 
       tokenCount = Math.ceil(charCount / 3.8);
       confidence = 'medium';
       break;
-      
+
     case 'anthropic':
       // Claude: Similar to OpenAI but slightly different tokenization
       tokenCount = Math.ceil(charCount / 3.9);
       confidence = 'medium';
       break;
-      
+
     case 'cohere':
       // Cohere: Roughly similar to OpenAI
       tokenCount = Math.ceil(charCount / 3.7);
       confidence = 'medium';
       break;
-      
+
     default:
       // Generic fallback: conservative estimate
       tokenCount = Math.ceil(charCount / 3.5);
       confidence = 'low';
   }
-  
+
   // Adjust for very short texts (tokens can't be less than words)
   tokenCount = Math.max(tokenCount, wordCount);
-  
+
   return {
     tokenCount,
     method: 'heuristic',
@@ -232,7 +232,7 @@ function countTokensHeuristic(text: string, provider: string): TokenCountResult 
  * Main token counting function with automatic fallback
  */
 export async function countTokens(
-  text: string, 
+  text: string,
   modelConfig: LLMModelConfig
 ): Promise<TokenCountResult> {
   // Try tiktoken-rs WASM first (for OpenAI models with encoding)
@@ -247,7 +247,7 @@ export async function countTokens(
       };
     }
   }
-  
+
   // Fallback to heuristic counting
   return countTokensHeuristic(text, modelConfig.provider);
 }
@@ -260,7 +260,7 @@ export function getModelConfig(modelName: string): LLMModelConfig {
   if (config) {
     return config;
   }
-  
+
   // Fallback for unknown models
   console.warn(`[Tokenizer] Unknown model ${modelName}, using default config`);
   return {
@@ -307,4 +307,4 @@ export function cleanupTokenizers(): void {
   }
   encoderCache.clear();
   tiktokenModule = null;
-} 
+}

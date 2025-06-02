@@ -18,7 +18,7 @@ describe('Agent Handlers - Tool Execution', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     mockEnv = {
       ENVIRONMENT: 'test',
       CODE_UPLOADS_BUCKET: {} as R2Bucket,
@@ -159,7 +159,7 @@ describe('Agent Handlers - Tool Execution', () => {
     it('should handle validation errors', async () => {
       const invalidRequest = {
         project_id: 'invalid-uuid',
-        tool_name: '',
+        tool_name: ''
         // Missing required fields
       };
 
@@ -204,4 +204,4 @@ describe('Agent Handlers - Tool Execution', () => {
       );
     });
   });
-}); 
+});

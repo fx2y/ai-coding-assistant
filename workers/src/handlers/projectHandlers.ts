@@ -6,10 +6,10 @@
 import type { Context } from 'hono';
 import type { Env, ProjectUploadResponse, PinnedContextItem, CreatePinnedItemRequest } from '../types.js';
 import { processAndStoreZip, generateProjectId, chunkFilesInProject } from '../services/indexingService.js';
-import { 
-  savePinnedItem, 
-  getPinnedItemsForProject, 
-  deletePinnedItem 
+import {
+  savePinnedItem,
+  getPinnedItemsForProject,
+  deletePinnedItem
 } from '../lib/kvStore.js';
 import { CreatePinnedItemSchema } from '../types.js';
 
@@ -207,7 +207,7 @@ export async function handleEmbeddingGeneration(c: Context<{ Bindings: Env }>): 
 
     // Import and call the embedding generation service
     const { generateEmbeddingsForProjectChunks } = await import('../services/indexingService.js');
-    
+
     const result = await generateEmbeddingsForProjectChunks(
       c.env,
       projectId,
@@ -289,7 +289,7 @@ export async function handleAddPinnedItem(c: Context<{ Bindings: Env }>): Promis
 
     // Generate unique ID for the pinned item
     const pinnedItemId = crypto.randomUUID();
-    
+
     // Create pinned context item
     const pinnedItem: PinnedContextItem = {
       id: pinnedItemId,

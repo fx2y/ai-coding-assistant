@@ -13,7 +13,7 @@ describe('Read File Tool', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     mockR2Bucket = {
       get: vi.fn(),
       put: vi.fn(),
@@ -137,7 +137,7 @@ export function createUser(name: string): User {
 
   it('should handle large files', async () => {
     const largeContent = 'x'.repeat(10000); // 10KB file
-    
+
     const mockR2Object = {
       text: vi.fn().mockResolvedValue(largeContent)
     } as unknown as R2ObjectBody;
@@ -157,7 +157,7 @@ export function createUser(name: string): User {
 
   it('should handle files with special characters in path', async () => {
     const fileContent = 'console.log("Hello, world!");';
-    
+
     const mockR2Object = {
       text: vi.fn().mockResolvedValue(fileContent)
     } as unknown as R2ObjectBody;
@@ -191,4 +191,4 @@ export function createUser(name: string): User {
     expect(result.error).toBe('Failed to read file corrupted.txt: Failed to read text');
     expect(result.tool_output).toBe('');
   });
-}); 
+});

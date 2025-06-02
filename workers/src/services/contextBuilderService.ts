@@ -5,21 +5,21 @@
  * Implements RFC-CTX-003: Dynamic Context Window Management
  */
 
-import type { 
-  Env, 
-  VectorSearchResult, 
+import type {
+  Env,
+  VectorSearchResult,
   AgentTurn,
   ManagedPromptContextResult,
   ContextSourceItem,
   TruncationResult
 } from '../types.js';
 import { getPinnedItemsForProject } from '../lib/kvStore.js';
-import { 
-  countTokens, 
-  getModelConfig, 
-  getAvailablePromptTokens, 
+import {
+  countTokens,
+  getModelConfig,
+  getAvailablePromptTokens,
   estimateCharsForTokens,
-  type LLMModelConfig 
+  type LLMModelConfig
 } from '../lib/tokenizer.js';
 
 export interface ContextSource {
@@ -55,7 +55,7 @@ export interface ContextBuildOptions {
  * - Pinned context items (files and text snippets)
  * - Implicit context (last focused file)
  * - Vector search results (optional)
- * 
+ *
  * Implements RFC-CTX-001: Explicit Context Management
  * Implements RFC-CTX-002: Implicit Context Aggregation
  */
@@ -82,9 +82,9 @@ export async function buildPromptContext(
     // A. Fetch Pinned Context Items
     if (includePinned) {
       const pinnedItems = await getPinnedItemsForProject(env.METADATA_KV, projectId);
-      
+
       // Filter by specific IDs if provided
-      const targetPinnedItems = pinnedItemIds.length > 0 
+      const targetPinnedItems = pinnedItemIds.length > 0
         ? pinnedItems.filter(item => pinnedItemIds.includes(item.id))
         : pinnedItems;
 
@@ -109,10 +109,10 @@ export async function buildPromptContext(
 
     // B. Fetch Content for Explicit Paths (including pinned file paths)
     const uniquePaths = [...new Set(explicitPaths)];
-    
+
     for (const path of uniquePaths) {
       const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
-      
+
       if (isLikelyFolder(normalizedPath)) {
         // Handle folder paths
         const folderSources = await fetchFolderContent(
@@ -122,7 +122,7 @@ export async function buildPromptContext(
           maxFolderFiles,
           maxFileSize
         );
-        
+
         contextSources.push(...folderSources);
         folderSources.forEach(source => {
           includedSources.push(`Folder File: ${source.path}`);
@@ -136,7 +136,7 @@ export async function buildPromptContext(
           normalizedPath,
           maxFileSize
         );
-        
+
         if (fileSource) {
           contextSources.push(fileSource);
           includedSources.push(`File: ${normalizedPath}`);
@@ -159,13 +159,13 @@ export async function buildPromptContext(
     if (implicitContext?.last_focused_file_path) {
       const implicitFilePath = implicitContext.last_focused_file_path;
       const normalizedImplicitPath = implicitFilePath.startsWith('/') ? implicitFilePath.slice(1) : implicitFilePath;
-      
+
       // Check if this file is already included via explicit paths or pinned items
       const alreadyIncluded = uniquePaths.some(path => {
         const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
         return normalizedPath === normalizedImplicitPath;
       });
-      
+
       if (!alreadyIncluded) {
         const implicitFileSource = await fetchFileContent(
           env,
@@ -173,7 +173,7 @@ export async function buildPromptContext(
           normalizedImplicitPath,
           maxFileSize
         );
-        
+
         if (implicitFileSource) {
           // Mark as implicit context source
           const implicitSource: ContextSource = {
@@ -184,7 +184,7 @@ export async function buildPromptContext(
           contextSources.push(implicitSource);
           includedSources.push(`Implicit Context File: ${normalizedImplicitPath}`);
           totalCharacters += implicitSource.content.length;
-          
+
           console.log(`[ContextBuilder] Included implicit context file: ${normalizedImplicitPath}`);
         } else {
           console.log(`[ContextBuilder] Implicit context file not found: ${normalizedImplicitPath}`);
@@ -242,17 +242,17 @@ export async function buildPromptContext(
 function isLikelyFolder(path: string): boolean {
   // Ends with slash
   if (path.endsWith('/')) return true;
-  
+
   // No file extension and doesn't look like a filename
   const lastSegment = path.split('/').pop() || '';
   const hasExtension = lastSegment.includes('.');
-  
+
   // Common folder patterns
   const folderPatterns = [
     'src', 'lib', 'components', 'utils', 'services', 'handlers',
     'test', 'tests', '__tests__', 'spec', 'docs', 'assets'
   ];
-  
+
   return !hasExtension || folderPatterns.includes(lastSegment.toLowerCase());
 }
 
@@ -267,27 +267,27 @@ async function fetchFolderContent(
   maxFileSize: number
 ): Promise<ContextSource[]> {
   const sources: ContextSource[] = [];
-  
+
   try {
     const prefix = `projects/${projectId}/original/${folderPath}`;
     const listResult = await env.CODE_UPLOADS_BUCKET.list({ prefix, limit: maxFiles });
-    
+
     for (const object of listResult.objects) {
       // Extract relative path from the full R2 key
       const prefixToRemove = `projects/${projectId}/original/`;
       if (!object.key.startsWith(prefixToRemove)) continue;
-      
+
       const relativePath = object.key.slice(prefixToRemove.length);
-      
+
       // Skip if it's a folder (ends with /)
       if (object.key.endsWith('/')) continue;
-      
+
       const fileSource = await fetchFileContent(env, projectId, relativePath, maxFileSize);
       if (fileSource) {
         sources.push(fileSource);
       }
     }
-    
+
     if (listResult.truncated) {
       sources.push({
         type: 'folder',
@@ -295,7 +295,7 @@ async function fetchFolderContent(
         content: `[Note: Folder contains more than ${maxFiles} files. Only first ${maxFiles} shown.]`
       });
     }
-    
+
   } catch (error) {
     console.error(`Error fetching folder content for ${folderPath}:`, error);
     sources.push({
@@ -304,7 +304,7 @@ async function fetchFolderContent(
       content: `[Error reading folder: ${folderPath}]`
     });
   }
-  
+
   return sources;
 }
 
@@ -320,11 +320,11 @@ async function fetchFileContent(
   try {
     const r2Key = `projects/${projectId}/original/${filePath}`;
     const r2Object = await env.CODE_UPLOADS_BUCKET.get(r2Key);
-    
+
     if (!r2Object) {
       return null;
     }
-    
+
     // Check file size
     if (r2Object.size > maxFileSize) {
       return {
@@ -333,15 +333,15 @@ async function fetchFileContent(
         content: `[File too large: ${filePath} (${r2Object.size} bytes, max ${maxFileSize})]`
       };
     }
-    
+
     const content = await r2Object.text();
-    
+
     return {
       type: 'file',
       path: filePath,
       content
     };
-    
+
   } catch (error) {
     console.error(`Error fetching file content for ${filePath}:`, error);
     return {
@@ -357,35 +357,35 @@ async function fetchFileContent(
  */
 function buildContextString(sources: ContextSource[]): string {
   const segments: string[] = [];
-  
+
   for (const source of sources) {
     switch (source.type) {
       case 'pinned_snippet':
         segments.push(`--- PINNED SNIPPET: ${source.description} ---\n${source.content}\n---`);
         break;
-        
+
       case 'file':
       case 'pinned_file':
         segments.push(`--- FILE: ${source.path} ---\n${source.content}\n---`);
         break;
-        
+
       case 'implicit_file':
         segments.push(`--- CURRENTLY FOCUSED FILE (Implicit): ${source.path} ---\n${source.content}\n---`);
         break;
-        
+
       case 'folder':
         segments.push(`--- FOLDER INFO: ${source.path} ---\n${source.content}\n---`);
         break;
-        
+
       case 'vector_result':
         segments.push(`--- RETRIEVED CODE SNIPPET (${source.path} ${source.description}) ---\n${source.content}\n---`);
         break;
-        
+
       default:
         segments.push(`--- CONTEXT ---\n${source.content}\n---`);
     }
   }
-  
+
   return segments.join('\n\n');
 }
 
@@ -400,16 +400,16 @@ export function parseExplicitTags(queryText: string): {
   const tagRegex = /@([\w\/\.-]+)/g;
   const explicitPaths: string[] = [];
   let match;
-  
+
   while ((match = tagRegex.exec(queryText)) !== null) {
     if (match[1]) {
       explicitPaths.push(match[1]);
     }
   }
-  
+
   // Remove tags from query text for cleaner LLM input
   const cleanedQuery = queryText.replace(tagRegex, '').trim();
-  
+
   return {
     explicitPaths: [...new Set(explicitPaths)], // Remove duplicates
     cleanedQuery
@@ -434,7 +434,7 @@ export async function buildManagedPromptContext(
   const availablePromptTokens = getAvailablePromptTokens(llmConfig);
   const warnings: string[] = [];
   const includedSources: string[] = [];
-  
+
   console.log(`[ManagedContext] Starting context assembly`, {
     projectId,
     availablePromptTokens,
@@ -485,7 +485,7 @@ export async function buildManagedPromptContext(
 
     // Return minimal context on error
     const errorPrompt = `System: You are an AI coding assistant.\n\nUser Query: ${userQuery}\n\n[ERROR: Failed to build full context]`;
-    
+
     let errorTokenCount;
     try {
       errorTokenCount = await countTokens(errorPrompt, llmConfig);
@@ -497,7 +497,7 @@ export async function buildManagedPromptContext(
         confidence: 'low' as const
       };
     }
-    
+
     return {
       finalPrompt: errorPrompt,
       usedTokens: errorTokenCount.tokenCount,
@@ -544,7 +544,7 @@ async function gatherContextSources(
   // Priority 3: Explicitly tagged files (@file/@folder)
   for (const path of explicitPaths) {
     const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
-    
+
     if (isLikelyFolder(normalizedPath)) {
       const folderSources = await fetchFolderContentForManaged(env, projectId, normalizedPath);
       sources.push(...folderSources.map(source => ({
@@ -577,7 +577,7 @@ async function gatherContextSources(
   const recentHistory = conversationHistory
     .slice(-6) // Last 6 turns max
     .reverse(); // Newest first for priority within this group
-  
+
   recentHistory.forEach((turn, index) => {
     const turnText = formatConversationTurn(turn);
     sources.push({
@@ -605,10 +605,10 @@ async function gatherContextSources(
 
   // Priority 7: Implicit context (lowest priority)
   if (implicitContext.last_focused_file_path) {
-    const implicitPath = implicitContext.last_focused_file_path.startsWith('/') 
-      ? implicitContext.last_focused_file_path.slice(1) 
+    const implicitPath = implicitContext.last_focused_file_path.startsWith('/')
+      ? implicitContext.last_focused_file_path.slice(1)
       : implicitContext.last_focused_file_path;
-    
+
     // Check if already included in explicit paths
     const alreadyIncluded = explicitPaths.some(path => {
       const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
@@ -656,9 +656,9 @@ async function assemblePromptWithinBudget(
   for (const source of contextSources) {
     // Count tokens for this source
     const tokenResult = await countTokens(source.text, llmConfig);
-    
+
     // Update method/confidence tracking (prefer higher confidence)
-    if (tokenResult.confidence === 'high' || 
+    if (tokenResult.confidence === 'high' ||
         (tokenResult.confidence === 'medium' && tokenCountConfidence !== 'high')) {
       tokenCountMethod = tokenResult.method;
       tokenCountConfidence = tokenResult.confidence;
@@ -672,12 +672,12 @@ async function assemblePromptWithinBudget(
       promptSegments.push(formatSourceForPrompt(source));
       includedSources.push(source.sourceDesc);
       currentTokens += sourceTokens;
-      
+
       console.log(`[ManagedContext] Included source: ${source.sourceDesc} (${sourceTokens} tokens)`);
     } else if (remainingTokens > 100) {
       // Try truncation if we have reasonable space left
       const truncationResult = await truncateSource(source, remainingTokens, llmConfig);
-      
+
       if (truncationResult.wasTruncated && truncationResult.usedTokens <= remainingTokens) {
         promptSegments.push(formatSourceForPrompt({
           ...source,
@@ -686,7 +686,7 @@ async function assemblePromptWithinBudget(
         includedSources.push(`${source.sourceDesc} (truncated)`);
         warnings.push(`Truncated: ${source.sourceDesc} using ${truncationResult.truncationMethod}`);
         currentTokens += truncationResult.usedTokens;
-        
+
         console.log(`[ManagedContext] Truncated source: ${source.sourceDesc} (${truncationResult.usedTokens} tokens)`);
       } else {
         warnings.push(`Skipped: ${source.sourceDesc} - too large even after truncation`);
@@ -706,10 +706,10 @@ async function assemblePromptWithinBudget(
   }
 
   const finalPrompt = promptSegments.join('\n\n');
-  
+
   // Final token count verification
   const finalTokenResult = await countTokens(finalPrompt, llmConfig);
-  
+
   console.log(`[ManagedContext] Final context assembled`, {
     finalTokens: finalTokenResult.tokenCount,
     availableTokens,
@@ -736,7 +736,7 @@ async function truncateSource(
   llmConfig: LLMModelConfig
 ): Promise<TruncationResult> {
   const maxChars = estimateCharsForTokens(maxTokens, llmConfig.provider);
-  
+
   let truncatedText: string;
   let truncationMethod: string;
 
@@ -747,19 +747,19 @@ async function truncateSource(
       truncatedText = truncateCodeFile(source.text, maxChars);
       truncationMethod = 'code-aware truncation';
       break;
-      
+
     case 'conversation_history':
       // For conversation, truncate from the beginning
       truncatedText = truncateFromStart(source.text, maxChars);
       truncationMethod = 'start truncation';
       break;
-      
+
     case 'vector_result':
       // For search results, truncate from end
       truncatedText = truncateFromEnd(source.text, maxChars);
       truncationMethod = 'end truncation';
       break;
-      
+
     default:
       // Generic truncation
       truncatedText = truncateFromEnd(source.text, maxChars);
@@ -767,7 +767,7 @@ async function truncateSource(
   }
 
   const tokenResult = await countTokens(truncatedText, llmConfig);
-  
+
   return {
     truncatedText,
     usedTokens: tokenResult.tokenCount,
@@ -781,15 +781,15 @@ async function truncateSource(
  */
 function truncateCodeFile(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text;
-  
+
   const lines = text.split('\n');
   const targetChars = maxChars - 50; // Reserve space for truncation marker
-  
+
   // Try to keep beginning and end of file
   const beginningLines: string[] = [];
   const endingLines: string[] = [];
   let currentChars = 0;
-  
+
   // Take lines from beginning
   for (let i = 0; i < lines.length && currentChars < targetChars / 2; i++) {
     const line = lines[i];
@@ -800,7 +800,7 @@ function truncateCodeFile(text: string, maxChars: number): string {
       break;
     }
   }
-  
+
   // Take lines from end
   currentChars = 0;
   for (let i = lines.length - 1; i >= beginningLines.length && currentChars < targetChars / 2; i--) {
@@ -812,7 +812,7 @@ function truncateCodeFile(text: string, maxChars: number): string {
       break;
     }
   }
-  
+
   if (beginningLines.length + endingLines.length < lines.length) {
     return beginningLines.join('\n') + '\n\n[... TRUNCATED ...]\n\n' + endingLines.join('\n');
   } else {
@@ -825,7 +825,7 @@ function truncateCodeFile(text: string, maxChars: number): string {
  */
 function truncateFromStart(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text;
-  
+
   const truncated = text.slice(text.length - maxChars + 20);
   return '[... TRUNCATED ...]\n' + truncated;
 }
@@ -835,7 +835,7 @@ function truncateFromStart(text: string, maxChars: number): string {
  */
 function truncateFromEnd(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text;
-  
+
   const truncated = text.slice(0, maxChars - 20);
   return truncated + '\n[... TRUNCATED ...]';
 }
@@ -856,9 +856,9 @@ async function fetchFileContentForManaged(
   try {
     const r2Key = `projects/${projectId}/original/${filePath}`;
     const fileObject = await env.CODE_UPLOADS_BUCKET.get(r2Key);
-    
+
     if (!fileObject) return null;
-    
+
     const content = await fileObject.text();
     return {
       text: `// File: ${filePath}\n${content}`,
@@ -884,9 +884,9 @@ async function fetchFolderContentForManaged(
       prefix,
       limit: 10 // Limit folder files for managed context
     });
-    
+
     const sources: ContextSourceItem[] = [];
-    
+
     for (const object of listResult.objects) {
       const relativePath = object.key.replace(`projects/${projectId}/original/`, '');
       const fileSource = await fetchFileContentForManaged(env, projectId, relativePath);
@@ -894,7 +894,7 @@ async function fetchFolderContentForManaged(
         sources.push(fileSource);
       }
     }
-    
+
     return sources;
   } catch (error) {
     console.warn(`[ManagedContext] Failed to fetch folder ${folderPath}:`, error);
@@ -910,9 +910,9 @@ async function fetchPinnedContentForManaged(
   try {
     const allPinnedItems = await getPinnedItemsForProject(env.METADATA_KV, projectId);
     const targetItems = allPinnedItems.filter(item => pinnedItemIds.includes(item.id));
-    
+
     const sources: ContextSourceItem[] = [];
-    
+
     for (const item of targetItems) {
       if (item.type === 'text_snippet') {
         sources.push({
@@ -933,7 +933,7 @@ async function fetchPinnedContentForManaged(
         }
       }
     }
-    
+
     return sources;
   } catch (error) {
     console.warn(`[ManagedContext] Failed to fetch pinned content:`, error);
@@ -944,15 +944,15 @@ async function fetchPinnedContentForManaged(
 function formatConversationTurn(turn: AgentTurn): string {
   const timestamp = new Date(turn.timestamp).toISOString();
   let content = `[${timestamp}] ${turn.role.toUpperCase()}: ${turn.content}`;
-  
+
   if (turn.toolCall) {
     content += `\nTOOL_CALL: ${turn.toolCall.name}(${JSON.stringify(turn.toolCall.parameters)})`;
   }
-  
+
   if (turn.toolResult) {
     content += `\nTOOL_RESULT: ${turn.toolResult.success ? 'SUCCESS' : 'ERROR'} - ${JSON.stringify(turn.toolResult.result)}`;
   }
-  
+
   return content;
 }
 
@@ -961,22 +961,22 @@ function formatSourceForPrompt(source: ContextSourceItem): string {
     case 'system_prompt':
     case 'user_query':
       return source.text;
-      
+
     case 'explicit_file':
     case 'implicit_file':
     case 'pinned_file':
       return `--- ${source.sourceDesc.toUpperCase()} ---\n${source.text}\n---`;
-      
+
     case 'pinned_snippet':
       return `--- ${source.sourceDesc.toUpperCase()} ---\n${source.text}\n---`;
-      
+
     case 'conversation_history':
       return `--- CONVERSATION HISTORY ---\n${source.text}\n---`;
-      
+
     case 'vector_result':
       return `--- RETRIEVED CODE SNIPPET ---\n${source.text}\n---`;
-      
+
     default:
       return `--- CONTEXT ---\n${source.text}\n---`;
   }
-} 
+}

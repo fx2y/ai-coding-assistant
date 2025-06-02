@@ -177,7 +177,7 @@ describe('VectorizeClient', () => {
 
       expect(mockVectorizeIndex.query).toHaveBeenCalledWith(
         [0.1, 0.2, 0.3],
-        { 
+        {
           topK: 5,
           returnMetadata: true,
           returnValues: false,
@@ -205,4 +205,4 @@ describe('VectorizeClient', () => {
       expect(result).toEqual(mockIndexInfo);
     });
   });
-}); 
+});

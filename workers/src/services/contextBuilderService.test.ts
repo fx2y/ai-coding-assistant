@@ -5,8 +5,8 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { 
-  buildPromptContext, 
+import {
+  buildPromptContext,
   parseExplicitTags
 } from './contextBuilderService.js';
 import type { Env, PinnedContextItem, VectorSearchResult } from '../types.js';
@@ -109,7 +109,7 @@ describe('buildPromptContext', () => {
 
   it('should build context with explicit file paths', async () => {
     const mockFileContent = 'export function authenticate() { /* auth logic */ }';
-    
+
     vi.mocked(mockEnv.CODE_UPLOADS_BUCKET.get).mockResolvedValue({
       text: () => Promise.resolve(mockFileContent),
       size: mockFileContent.length
@@ -334,7 +334,7 @@ describe('buildPromptContext', () => {
 
   it('should handle implicit context when last focused file is provided', async () => {
     const mockFileContent = 'export function currentlyFocused() { return "active"; }';
-    
+
     vi.mocked(mockEnv.CODE_UPLOADS_BUCKET.get).mockResolvedValue({
       text: () => Promise.resolve(mockFileContent),
       size: mockFileContent.length
@@ -359,7 +359,7 @@ describe('buildPromptContext', () => {
 
   it('should not duplicate implicit context file if already included explicitly', async () => {
     const mockFileContent = 'export function duplicateTest() { return "test"; }';
-    
+
     vi.mocked(mockEnv.CODE_UPLOADS_BUCKET.get).mockResolvedValue({
       text: () => Promise.resolve(mockFileContent),
       size: mockFileContent.length
@@ -380,7 +380,7 @@ describe('buildPromptContext', () => {
     expect(mockEnv.CODE_UPLOADS_BUCKET.get).toHaveBeenCalledWith(
       'projects/test-project-123/original/src/duplicate.js'
     );
-    
+
     // Should appear as explicit file, not implicit
     expect(result.contextString).toContain('--- FILE: src/duplicate.js ---');
     expect(result.contextString).not.toContain('--- CURRENTLY FOCUSED FILE (Implicit)');
@@ -402,7 +402,7 @@ describe('buildPromptContext', () => {
     expect(mockEnv.CODE_UPLOADS_BUCKET.get).toHaveBeenCalledWith(
       'projects/test-project-123/original/src/missing.js'
     );
-    
+
     // Should not include any implicit context in the result
     expect(result.contextString).not.toContain('--- CURRENTLY FOCUSED FILE (Implicit)');
     expect(result.includedSources).not.toContain('Implicit Context File: src/missing.js');
@@ -411,7 +411,7 @@ describe('buildPromptContext', () => {
   it('should combine explicit, pinned, implicit, and vector search contexts', async () => {
     const explicitFileContent = 'export function explicit() { return "explicit"; }';
     const implicitFileContent = 'export function implicit() { return "implicit"; }';
-    
+
     const mockPinnedItems: PinnedContextItem[] = [
       {
         id: 'pin-1',
@@ -460,10 +460,10 @@ describe('buildPromptContext', () => {
     expect(result.contextString).toContain('--- FILE: src/explicit.js ---');
     expect(result.contextString).toContain('--- CURRENTLY FOCUSED FILE (Implicit): src/implicit.js ---');
     expect(result.contextString).toContain('--- RETRIEVED CODE SNIPPET (src/vector.js L5, Score: 0.90) ---');
-    
+
     expect(result.includedSources).toContain('Pinned Snippet: Pinned Note');
     expect(result.includedSources).toContain('File: src/explicit.js');
     expect(result.includedSources).toContain('Implicit Context File: src/implicit.js');
     expect(result.includedSources).toContain('Retrieved: src/vector.js L5');
   });
-}); 
+});

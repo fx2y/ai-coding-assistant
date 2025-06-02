@@ -19,7 +19,7 @@ describe('searchHandlers', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     app = new Hono<{ Bindings: Env; Variables: { requestId: string } }>();
     app.use('*', async (c, next) => {
       c.set('requestId', 'test-request-123');
@@ -79,7 +79,7 @@ describe('searchHandlers', () => {
 
       // Verify response
       expect(response.status).toBe(200);
-      
+
       const responseData = await response.json() as any;
       expect(responseData).toEqual({
         results: mockServiceResult.results,
@@ -123,7 +123,7 @@ describe('searchHandlers', () => {
       }, mockEnv);
 
       expect(response.status).toBe(400);
-      
+
       const responseData = await response.json() as any;
       expect(responseData.error).toBe('ValidationError');
       expect(responseData.message).toBe('Invalid request body');
@@ -154,7 +154,7 @@ describe('searchHandlers', () => {
       }, mockEnv);
 
       expect(response.status).toBe(502);
-      
+
       const responseData = await response.json() as any;
       expect(responseData.error).toBe('EMBEDDING_GENERATION_FAILED');
       expect(responseData.message).toContain('Failed to generate query embedding');
@@ -162,4 +162,4 @@ describe('searchHandlers', () => {
       expect(responseData.requestId).toBe('test-request-123');
     });
   });
-}); 
+});

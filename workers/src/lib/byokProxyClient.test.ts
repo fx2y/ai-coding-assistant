@@ -239,4 +239,4 @@ describe('BYOK Proxy Client', () => {
       expect(isEmbeddingError(successResponse)).toBe(false);
     });
   });
-}); 
+});

@@ -271,7 +271,7 @@ export async function chunkFilesInProject(
     // Process each file
     for (const r2Object of fileList.objects) {
       const originalRelativePath = r2Object.key.substring(prefix.length);
-      
+
       try {
         console.log(`Processing file: ${originalRelativePath}`);
 
@@ -298,15 +298,15 @@ export async function chunkFilesInProject(
 
         // Store each chunk and its metadata
         const chunkIds: string[] = [];
-        
+
         for (const chunk of chunks) {
           try {
             // Validate chunk
             const validatedChunk = validateChunk(chunk);
-            
+
             // Generate unique chunk ID
             const chunkId = crypto.randomUUID();
-            
+
             // Store chunk text in R2
             const chunkR2Key = `projects/${projectId}/chunks/${chunkId}.txt`;
             await env.CODE_UPLOADS_BUCKET.put(chunkR2Key, validatedChunk.text, {
@@ -336,7 +336,7 @@ export async function chunkFilesInProject(
 
             // Store chunk metadata in KV
             await saveChunkMetadata(env.METADATA_KV, chunkMetadata);
-            
+
             chunkIds.push(chunkId);
             totalChunksCreated++;
 
@@ -498,7 +498,7 @@ export async function generateEmbeddingsForProjectChunks(
         if (isEmbeddingError(embeddingResult)) {
           const errorMsg = `Batch ${batchNumber} failed: ${embeddingResult.error.message}`;
           console.error(errorMsg, embeddingResult.error);
-          
+
           // Add errors for all chunks in this batch
           for (const chunk of batch) {
             errors.push({
@@ -519,7 +519,7 @@ export async function generateEmbeddingsForProjectChunks(
         if (embeddings.length !== batch.length) {
           const errorMsg = `Embedding count mismatch: expected ${batch.length}, got ${embeddings.length}`;
           console.error(errorMsg);
-          
+
           for (const chunk of batch) {
             errors.push({
               chunkId: chunk.metadata.id,
@@ -550,7 +550,7 @@ export async function generateEmbeddingsForProjectChunks(
 
             // Save updated metadata to KV
             await saveChunkMetadata(env.METADATA_KV, updatedMetadata);
-            
+
             successfulEmbeddingCount++;
             console.log(`Successfully generated embedding for chunk ${chunk.metadata.id} (${embedding.length} dimensions)`);
 
@@ -568,13 +568,13 @@ export async function generateEmbeddingsForProjectChunks(
         // P1-E2-S2: Insert embeddings into Vectorize in batch
         try {
           const { insertVectorsBatch } = await import('../lib/vectorizeClient.js');
-          
+
           const vectorsToInsert = batch.map((chunk, index) => {
             const embedding = embeddings[index];
             if (!embedding) {
               throw new Error(`Missing embedding for chunk ${chunk.metadata.id} at index ${index}`);
             }
-            
+
             return {
               id: chunk.metadata.id,
               values: embedding,
@@ -588,7 +588,7 @@ export async function generateEmbeddingsForProjectChunks(
           });
 
           const vectorizeResult = await insertVectorsBatch(env.VECTORIZE_INDEX, vectorsToInsert);
-          
+
           console.log(`Successfully inserted ${vectorsToInsert.length} vectors into Vectorize for batch ${batchNumber}`, {
             count: vectorizeResult.count
           });
@@ -596,18 +596,18 @@ export async function generateEmbeddingsForProjectChunks(
           // Update chunk metadata to mark as indexed and remove temporary embedding
           for (let j = 0; j < batch.length; j++) {
             const chunk = batch[j];
-            
+
             if (!chunk) {
               console.error(`Missing chunk at index ${j}`);
               continue;
             }
-            
+
             try {
               const { tempEmbeddingVector, ...updatedMetadata } = chunk.metadata;
 
               await saveChunkMetadata(env.METADATA_KV, updatedMetadata);
               successfulEmbeddingCount++;
-              
+
             } catch (kvError) {
               const errorMessage = kvError instanceof Error ? kvError.message : 'Unknown error';
               console.error(`Failed to update KV metadata for chunk ${chunk.metadata.id}:`, kvError);
@@ -622,7 +622,7 @@ export async function generateEmbeddingsForProjectChunks(
         } catch (vectorizeError) {
           const errorMessage = vectorizeError instanceof Error ? vectorizeError.message : 'Unknown error';
           console.error(`Failed to insert batch ${batchNumber} into Vectorize:`, vectorizeError);
-          
+
           // Add errors for all chunks in this batch
           for (const chunk of batch) {
             if (chunk) {
@@ -645,7 +645,7 @@ export async function generateEmbeddingsForProjectChunks(
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error(`Failed to process batch ${batchNumber}:`, error);
-        
+
         for (const chunk of batch) {
           errors.push({
             chunkId: chunk.metadata.id,
@@ -676,9 +676,9 @@ export async function generateEmbeddingsForProjectChunks(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`Failed to generate embeddings for project ${projectId}:`, error);
-    
+
     const totalProcessingTimeMs = Date.now() - startTime;
-    
+
     return {
       processedChunkCount,
       successfulEmbeddingCount,

@@ -5,11 +5,11 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { buildManagedPromptContext } from './contextBuilderService.js';
-import type { 
-  Env, 
-  VectorSearchResult, 
-  AgentTurn, 
-  PinnedContextItem 
+import type {
+  Env,
+  VectorSearchResult,
+  AgentTurn,
+  PinnedContextItem
 } from '../types.js';
 import { getModelConfig } from '../lib/tokenizer.js';
 import type { LLMModelConfig } from '../lib/tokenizer.js';
@@ -52,7 +52,7 @@ describe('buildManagedPromptContext', () => {
   beforeEach(() => {
     mockEnv = createMockEnv();
     vi.clearAllMocks();
-    
+
     // Default mock for token counting - simple character-based estimation
     vi.mocked(countTokens).mockImplementation(async (text: string) => ({
       tokenCount: Math.ceil(text.length / 4), // Rough estimate: 4 chars per token
@@ -86,7 +86,7 @@ describe('buildManagedPromptContext', () => {
 
   it('should include explicit file content with high priority', async () => {
     const mockFileContent = 'export function authenticate() { return true; }';
-    
+
     vi.mocked(mockEnv.CODE_UPLOADS_BUCKET.get).mockResolvedValue({
       text: () => Promise.resolve(mockFileContent),
       size: mockFileContent.length
@@ -214,7 +214,7 @@ describe('buildManagedPromptContext', () => {
   it('should respect token limits and truncate when necessary', async () => {
     // Create a very large file content that will exceed token limits
     const largeFileContent = 'x'.repeat(10000); // Very large content
-    
+
     vi.mocked(mockEnv.CODE_UPLOADS_BUCKET.get).mockResolvedValue({
       text: () => Promise.resolve(largeFileContent),
       size: largeFileContent.length
@@ -259,7 +259,7 @@ describe('buildManagedPromptContext', () => {
     // Setup multiple sources to test prioritization
     const explicitFileContent = 'explicit file content';
     const pinnedContent = 'pinned content';
-    
+
     vi.mocked(mockEnv.CODE_UPLOADS_BUCKET.get).mockResolvedValue({
       text: () => Promise.resolve(explicitFileContent),
       size: explicitFileContent.length
@@ -317,7 +317,7 @@ describe('buildManagedPromptContext', () => {
 
   it('should handle implicit context when not already included', async () => {
     const implicitFileContent = 'implicit file content';
-    
+
     vi.mocked(mockEnv.CODE_UPLOADS_BUCKET.get).mockResolvedValue({
       text: () => Promise.resolve(implicitFileContent),
       size: implicitFileContent.length
@@ -344,7 +344,7 @@ describe('buildManagedPromptContext', () => {
 
   it('should not duplicate implicit context if already explicit', async () => {
     const fileContent = 'shared file content';
-    
+
     vi.mocked(mockEnv.CODE_UPLOADS_BUCKET.get).mockResolvedValue({
       text: () => Promise.resolve(fileContent),
       size: fileContent.length
@@ -384,7 +384,7 @@ describe('buildManagedPromptContext', () => {
       // Subsequent calls should fail to trigger error handling
       throw new Error('Token counting failed');
     });
-    
+
     vi.mocked(getPinnedItemsForProject).mockResolvedValue([]);
 
     const result = await buildManagedPromptContext(
@@ -431,7 +431,7 @@ describe('buildManagedPromptContext', () => {
     // Should only include last 6 turns (newest first)
     const conversationSources = result.includedSources.filter(s => s.includes('Conversation Turn'));
     expect(conversationSources.length).toBeLessThanOrEqual(6);
-    
+
     // Should include the most recent turns
     expect(result.finalPrompt).toContain('Turn 9'); // Most recent
     expect(result.finalPrompt).not.toContain('Turn 0'); // Oldest should be excluded
@@ -464,9 +464,9 @@ describe('buildManagedPromptContext', () => {
     // Should only include top 10 results
     const vectorSources = result.includedSources.filter(s => s.includes('Vector Result'));
     expect(vectorSources.length).toBeLessThanOrEqual(10);
-    
+
     // Should include highest scoring results
     expect(result.finalPrompt).toContain('file-0.js'); // Highest score
     expect(result.finalPrompt).not.toContain('file-14.js'); // Lowest score should be excluded
   });
-}); 
+});

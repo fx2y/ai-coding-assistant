@@ -94,4 +94,4 @@ declare global {
     waitUntil(promise: Promise<unknown>): void;
     passThroughOnException(): void;
   }
-} 
+}

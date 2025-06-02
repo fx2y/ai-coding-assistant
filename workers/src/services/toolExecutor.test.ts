@@ -18,7 +18,7 @@ describe('Tool Executor Service', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     mockContext = {
       env: {
         ENVIRONMENT: 'test',
@@ -189,7 +189,7 @@ describe('Tool Executor Service', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.observation).toBe("Error: Unknown tool 'unknown_tool'. Available tools: code_search, read_file");
+      expect(result.observation).toBe('Error: Unknown tool \'unknown_tool\'. Available tools: code_search, read_file');
     });
 
     it('should handle unexpected errors during tool execution', async () => {
@@ -258,4 +258,4 @@ describe('Tool Executor Service', () => {
       expect(manifest).toContain('Use this when you need to see the complete implementation');
     });
   });
-}); 
+});

@@ -193,25 +193,25 @@ export interface ChunkingResult {
 }
 
 // Language detection types
-export type SupportedLanguage = 
-  | 'javascript' 
-  | 'typescript' 
-  | 'python' 
-  | 'java' 
-  | 'cpp' 
-  | 'c' 
-  | 'csharp' 
-  | 'go' 
-  | 'rust' 
-  | 'php' 
-  | 'ruby' 
-  | 'markdown' 
-  | 'yaml' 
-  | 'json' 
-  | 'html' 
-  | 'css' 
-  | 'shell' 
-  | 'sql' 
+export type SupportedLanguage =
+  | 'javascript'
+  | 'typescript'
+  | 'python'
+  | 'java'
+  | 'cpp'
+  | 'c'
+  | 'csharp'
+  | 'go'
+  | 'rust'
+  | 'php'
+  | 'ruby'
+  | 'markdown'
+  | 'yaml'
+  | 'json'
+  | 'html'
+  | 'css'
+  | 'shell'
+  | 'sql'
   | 'text';
 
 // Embedding generation types (P1-E2-S1)

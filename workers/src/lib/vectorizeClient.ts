@@ -22,10 +22,10 @@ export async function insertVector(
     ...(metadata.startLine !== undefined && { startLine: metadata.startLine })
   };
 
-  return index.upsert([{ 
-    id, 
-    values, 
-    metadata: preparedMetadata 
+  return index.upsert([{
+    id,
+    values,
+    metadata: preparedMetadata
   }]);
 }
 
@@ -93,4 +93,4 @@ export async function queryVectorsForProject(
  */
 export async function getIndexInfo(index: VectorizeIndex): Promise<VectorizeIndexDetails> {
   return index.describe();
-} 
+}

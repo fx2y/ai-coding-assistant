@@ -4,8 +4,8 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { 
-  buildPromptContext, 
+import {
+  buildPromptContext,
   parseExplicitTags
 } from './contextBuilderService.js';
 import type { Env, PinnedContextItem, VectorSearchResult } from '../types.js';
@@ -43,7 +43,7 @@ describe('P2-E1-S1 Integration: @tag parsing and context building', () => {
   it('should demonstrate complete workflow: @tags + pinned items + vector results', async () => {
     // 1. Setup: User query with @tags
     const userQuery = 'How does authentication work in @auth.js? Also check @utils/security.js for helpers.';
-    
+
     // 2. Parse @tags from query
     const { explicitPaths, cleanedQuery } = parseExplicitTags(userQuery);
     expect(explicitPaths).toEqual(['auth.js', 'utils/security.js']);
@@ -136,16 +136,16 @@ export const authConfig = {
     // 9. Verify complete context includes all sources
     expect(contextResult.contextString).toContain('--- FILE: auth.js ---');
     expect(contextResult.contextString).toContain('export function authenticate');
-    
+
     expect(contextResult.contextString).toContain('--- FILE: utils/security.js ---');
     expect(contextResult.contextString).toContain('export function hashPassword');
-    
+
     expect(contextResult.contextString).toContain('--- FILE: config/auth-config.js ---');
     expect(contextResult.contextString).toContain('export const authConfig');
-    
+
     expect(contextResult.contextString).toContain('--- PINNED SNIPPET: Security Note ---');
     expect(contextResult.contextString).toContain('Always validate JWT tokens');
-    
+
     expect(contextResult.contextString).toContain('--- RETRIEVED CODE SNIPPET (middleware/auth.js L15, Score: 0.92) ---');
     expect(contextResult.contextString).toContain('function validateToken');
 
@@ -163,7 +163,7 @@ export const authConfig = {
 
     // 12. Verify total character count
     expect(contextResult.totalCharacters).toBeGreaterThan(0);
-    
+
     console.log('✅ P2-E1-S1 Integration Test: Complete context building workflow verified');
     console.log(`📊 Context includes ${contextResult.includedSources.length} sources with ${contextResult.totalCharacters} characters`);
   });
@@ -172,7 +172,7 @@ export const authConfig = {
     // 1. User query with folder tag
     const userQuery = 'Analyze the structure of @src/components/ folder';
     const { explicitPaths, cleanedQuery } = parseExplicitTags(userQuery);
-    
+
     expect(explicitPaths).toEqual(['src/components/']);
     expect(cleanedQuery).toBe('Analyze the structure of  folder');
 
@@ -232,4 +232,4 @@ export const authConfig = {
 
     console.log('✅ P2-E1-S1 Integration Test: @folder + pinned items workflow verified');
   });
-}); 
+});

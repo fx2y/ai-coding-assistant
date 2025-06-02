@@ -18,7 +18,7 @@ describe('Code Search Tool', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     mockEnv = {
       ENVIRONMENT: 'test',
       CODE_UPLOADS_BUCKET: {} as R2Bucket,
@@ -232,4 +232,4 @@ describe('Code Search Tool', () => {
     expect(result.tool_output).toContain('```text'); // Default language
     expect(result.tool_output).toContain('[Content not available]'); // Default content
   });
-}); 
+});

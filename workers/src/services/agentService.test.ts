@@ -27,7 +27,7 @@ describe('Agent Service', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     mockEnv = {
       ENVIRONMENT: 'test',
       CODE_UPLOADS_BUCKET: {} as R2Bucket,
@@ -207,4 +207,4 @@ describe('Agent Service', () => {
     expect(result.direct_response).toBeNull();
     expect(result.iterations_remaining).toBe(3); // Should remain unchanged on error
   });
-}); 
+});

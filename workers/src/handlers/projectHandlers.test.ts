@@ -208,7 +208,7 @@ describe('handleEmbeddingGeneration', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Mock the embedding generation service
     vi.doMock('../services/indexingService.js', () => ({
       generateEmbeddingsForProjectChunks: vi.fn()
@@ -262,7 +262,7 @@ describe('handleEmbeddingGeneration', () => {
 
   it('should reject invalid project ID format', async () => {
     const invalidProjectId = 'invalid-id';
-    
+
     const mockContext = {
       req: {
         param: vi.fn().mockReturnValue(invalidProjectId)
@@ -396,7 +396,7 @@ describe('Pinned Context Handlers', () => {
 
     it('should return 400 for missing projectId', async () => {
       const mockEnv = {} as Env;
-      
+
       const mockContext = {
         req: {
           param: vi.fn().mockReturnValue(undefined)
@@ -418,7 +418,7 @@ describe('Pinned Context Handlers', () => {
 
     it('should return 400 for invalid projectId format', async () => {
       const mockEnv = {} as Env;
-      
+
       const mockContext = {
         req: {
           param: vi.fn().mockReturnValue('invalid-id')
@@ -440,7 +440,7 @@ describe('Pinned Context Handlers', () => {
 
     it('should return 400 for invalid request body', async () => {
       const mockEnv = {} as Env;
-      
+
       const mockContext = {
         req: {
           param: vi.fn().mockReturnValue('550e8400-e29b-41d4-a716-446655440000'),
@@ -586,7 +586,7 @@ describe('Pinned Context Handlers', () => {
 
     it('should return 400 for missing pinnedItemId', async () => {
       const mockEnv = {} as Env;
-      
+
       const mockContext = {
         req: {
           param: vi.fn()
@@ -610,7 +610,7 @@ describe('Pinned Context Handlers', () => {
 
     it('should return 400 for invalid pinnedItemId format', async () => {
       const mockEnv = {} as Env;
-      
+
       const mockContext = {
         req: {
           param: vi.fn()

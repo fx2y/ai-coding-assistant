@@ -30,7 +30,7 @@ describe('retrievalService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     mockEnv = {
       ENVIRONMENT: 'test',
       CODE_UPLOADS_BUCKET: {
@@ -52,7 +52,7 @@ describe('retrievalService', () => {
         model: 'text-embedding-ada-002',
         usage: { prompt_tokens: 10, total_tokens: 10 }
       };
-      
+
       mockGetEmbeddingsViaProxy.mockResolvedValue(mockEmbeddingResponse);
       mockIsEmbeddingError.mockReturnValue(false);
 
@@ -84,7 +84,7 @@ describe('retrievalService', () => {
         ],
         count: 2
       };
-      
+
       mockQueryVectorsForProject.mockResolvedValue(mockVectorizeResults);
 
       // Mock chunk metadata from KV
@@ -131,7 +131,7 @@ describe('retrievalService', () => {
       // Verify the hydrated results
       expect(result.error).toBeUndefined();
       expect(result.results).toHaveLength(2);
-      
+
       expect(result.results![0]).toEqual({
         chunk_id: 'chunk-1',
         original_file_path: 'src/auth.js',
@@ -171,7 +171,7 @@ describe('retrievalService', () => {
         data: [{ embedding: [0.1, 0.2, 0.3], index: 0 }],
         model: 'text-embedding-ada-002'
       };
-      
+
       mockGetEmbeddingsViaProxy.mockResolvedValue(mockEmbeddingResponse);
       mockIsEmbeddingError.mockReturnValue(false);
 
@@ -190,7 +190,7 @@ describe('retrievalService', () => {
         ],
         count: 2
       };
-      
+
       mockQueryVectorsForProject.mockResolvedValue(mockVectorizeResults);
 
       // Mock KV responses - first succeeds, second fails
@@ -235,7 +235,7 @@ describe('retrievalService', () => {
         data: [{ embedding: [0.1, 0.2, 0.3], index: 0 }],
         model: 'text-embedding-ada-002'
       };
-      
+
       mockGetEmbeddingsViaProxy.mockResolvedValue(mockEmbeddingResponse);
       mockIsEmbeddingError.mockReturnValue(false);
 
@@ -249,7 +249,7 @@ describe('retrievalService', () => {
         ],
         count: 1
       };
-      
+
       mockQueryVectorsForProject.mockResolvedValue(mockVectorizeResults);
 
       // Mock successful KV response
@@ -290,7 +290,7 @@ describe('retrievalService', () => {
         data: [{ embedding: [0.1, 0.2, 0.3], index: 0 }],
         model: 'text-embedding-ada-002'
       };
-      
+
       mockGetEmbeddingsViaProxy.mockResolvedValue(mockEmbeddingResponse);
       mockIsEmbeddingError.mockReturnValue(false);
 
@@ -309,7 +309,7 @@ describe('retrievalService', () => {
         ],
         count: 2
       };
-      
+
       mockQueryVectorsForProject.mockResolvedValue(mockVectorizeResults);
 
       // Mock KV responses - first throws error, second succeeds
@@ -355,7 +355,7 @@ describe('retrievalService', () => {
         model: 'text-embedding-ada-002',
         usage: { prompt_tokens: 10, total_tokens: 10 }
       };
-      
+
       mockGetEmbeddingsViaProxy.mockResolvedValue(mockEmbeddingResponse);
       mockIsEmbeddingError.mockReturnValue(false);
 
@@ -375,7 +375,7 @@ describe('retrievalService', () => {
         ],
         count: 1
       };
-      
+
       mockQueryVectorsForProject.mockResolvedValue(mockVectorizeResults);
 
       // Mock hydration data
@@ -429,7 +429,7 @@ describe('retrievalService', () => {
         { input: queryText, model: 'text-embedding-ada-002' },
         'http://localhost:8787/api/proxy/external'
       );
-      
+
       expect(mockQueryVectorsForProject).toHaveBeenCalledWith(
         mockEnv.VECTORIZE_INDEX,
         [0.1, 0.2, 0.3],
@@ -447,7 +447,7 @@ describe('retrievalService', () => {
           data: { code: 'invalid_api_key' }
         }
       };
-      
+
       mockGetEmbeddingsViaProxy.mockResolvedValue(mockErrorResponse);
       mockIsEmbeddingError.mockReturnValue(true);
 
@@ -475,7 +475,7 @@ describe('retrievalService', () => {
         data: [],
         model: 'text-embedding-ada-002'
       };
-      
+
       mockGetEmbeddingsViaProxy.mockResolvedValue(mockEmptyResponse);
       mockIsEmbeddingError.mockReturnValue(false);
 
@@ -500,7 +500,7 @@ describe('retrievalService', () => {
         data: [{ index: 0 }], // Missing embedding field
         model: 'text-embedding-ada-002'
       };
-      
+
       mockGetEmbeddingsViaProxy.mockResolvedValue(mockInvalidResponse as any);
       mockIsEmbeddingError.mockReturnValue(false);
 
@@ -525,7 +525,7 @@ describe('retrievalService', () => {
         data: [{ embedding: [0.1, 0.2, 0.3], index: 0 }],
         model: 'text-embedding-ada-002'
       };
-      
+
       mockGetEmbeddingsViaProxy.mockResolvedValue(mockEmbeddingResponse);
       mockIsEmbeddingError.mockReturnValue(false);
 
@@ -559,7 +559,7 @@ describe('retrievalService', () => {
         data: [{ embedding: [0.1, 0.2, 0.3], index: 0 }],
         model: 'text-embedding-ada-002'
       };
-      
+
       mockGetEmbeddingsViaProxy.mockResolvedValue(mockEmbeddingResponse);
       mockIsEmbeddingError.mockReturnValue(false);
 
@@ -595,7 +595,7 @@ describe('retrievalService', () => {
         data: [{ embedding: [0.1, 0.2, 0.3], index: 0 }],
         model: 'jina-embeddings-v2-base-en'
       };
-      
+
       mockGetEmbeddingsViaProxy.mockResolvedValue(mockEmbeddingResponse);
       mockIsEmbeddingError.mockReturnValue(false);
       mockQueryVectorsForProject.mockResolvedValue({ matches: [], count: 0 });
@@ -625,7 +625,7 @@ describe('retrievalService', () => {
         data: [{ embedding: [0.1, 0.2, 0.3], index: 0 }],
         model: 'text-embedding-ada-002'
       };
-      
+
       mockGetEmbeddingsViaProxy.mockResolvedValue(mockEmbeddingResponse);
       mockIsEmbeddingError.mockReturnValue(false);
 
@@ -640,7 +640,7 @@ describe('retrievalService', () => {
         ],
         count: 1
       } as any; // Type assertion to bypass strict typing for test
-      
+
       mockQueryVectorsForProject.mockResolvedValue(mockVectorizeResults);
 
       // Execute the function
@@ -664,4 +664,4 @@ describe('retrievalService', () => {
       });
     });
   });
-}); 
+});

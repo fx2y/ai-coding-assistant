@@ -33,11 +33,11 @@ export async function handleManagedContextDemo(
   c: Context<{ Bindings: Env; Variables: { requestId: string } }>
 ): Promise<Response> {
   const requestId = c.get('requestId');
-  
+
   try {
     const body = await c.req.json();
     const validatedRequest = ManagedContextDemoSchema.parse(body);
-    
+
     const {
       project_id,
       user_query,
@@ -60,7 +60,7 @@ export async function handleManagedContextDemo(
 
     // Get model configuration
     const llmConfig = getModelConfig(model_name);
-    
+
     // Create mock vector search results if requested
     const mockVectorResults = include_mock_vector_results ? [
       {
@@ -126,11 +126,11 @@ export async function handleManagedContextDemo(
     ] : [];
 
     // Build managed context
-    const implicitContextParam: { last_focused_file_path?: string } = 
-      implicit_context.last_focused_file_path 
+    const implicitContextParam: { last_focused_file_path?: string } =
+      implicit_context.last_focused_file_path
         ? { last_focused_file_path: implicit_context.last_focused_file_path }
         : {};
-    
+
     const contextResult = await buildManagedPromptContext(
       c.env,
       project_id,
@@ -229,10 +229,10 @@ export async function handleTokenCountDemo(
   c: Context<{ Bindings: Env; Variables: { requestId: string } }>
 ): Promise<Response> {
   const requestId = c.get('requestId');
-  
+
   try {
     const { text, model_name = 'gpt-4' } = await c.req.json();
-    
+
     if (!text || typeof text !== 'string') {
       return c.json({
         success: false,
@@ -282,4 +282,4 @@ export async function handleTokenCountDemo(
       }
     }, 500);
   }
-} 
+}

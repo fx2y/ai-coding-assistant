@@ -25,7 +25,7 @@ export interface VectorSearchServiceResult {
 /**
  * Perform vector search for a user query within a specific project
  * Extended for P1-E3-S2: Includes result hydration with chunk text from R2
- * 
+ *
  * @param env - Cloudflare Worker environment bindings
  * @param projectId - Project ID to search within
  * @param queryText - User's natural language search query
@@ -167,7 +167,7 @@ export async function performVectorSearch(
 
           // Construct KV key for chunk metadata
           const chunkMetaKey = `project:${projectId}:chunk:${chunkId}`;
-          
+
           // Fetch chunk metadata from KV
           let chunkMetaJson: string | null;
           try {
@@ -177,13 +177,13 @@ export async function performVectorSearch(
             // KV call failed - filter out this result due to error
             return null;
           }
-          
+
           if (chunkMetaJson === null) {
             console.warn(`Chunk metadata explicitly missing in KV for chunkId: ${chunkId}`);
             // Explicitly missing metadata - filter out this result
             return null;
           }
-          
+
           if (!chunkMetaJson) {
             console.warn(`Chunk metadata unavailable in KV for chunkId: ${chunkId}`);
             // Metadata unavailable (undefined) - provide default result for graceful degradation
@@ -252,9 +252,9 @@ export async function performVectorSearch(
     } catch (vectorizeError) {
       const vectorSearchTime = Date.now() - vectorSearchStartTime;
       const errorMessage = vectorizeError instanceof Error ? vectorizeError.message : 'Unknown Vectorize error';
-      
+
       console.error(`Vectorize query failed for project ${projectId}:`, vectorizeError);
-      
+
       return {
         error: {
           message: `Vector search failed: ${errorMessage}`,
@@ -286,4 +286,4 @@ export async function performVectorSearch(
       }
     };
   }
-} 
+}

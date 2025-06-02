@@ -3,10 +3,10 @@
  * Implements RFC-SEC-001: Secure External API Proxy Client
  */
 
-import type { 
-  SupportedExternalService, 
-  ChatCompletionRequest, 
-  ChatCompletionResult, 
+import type {
+  SupportedExternalService,
+  ChatCompletionRequest,
+  ChatCompletionResult,
   ChatCompletionResponse,
   ProxyErrorResponse as ProxyError
 } from '../types.js';
@@ -61,7 +61,7 @@ export function isEmbeddingError(result: EmbeddingResult): result is ProxyErrorR
 
 /**
  * Get embeddings via the BYOK proxy worker
- * 
+ *
  * @param proxyWorkerFetch - Fetch function (global fetch or worker-specific)
  * @param targetService - External service identifier (e.g., 'openai_embedding', 'jina_embedding')
  * @param apiKey - User's API key for the external service
@@ -87,14 +87,14 @@ export async function getEmbeddingsViaProxy(
 
     const response = await proxyWorkerFetch(proxyUrl, {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         target_service: targetService,
         api_key: apiKey,
-        payload: payload,
-      }),
+        payload: payload
+      })
     });
 
     if (!response.ok) {
@@ -146,7 +146,7 @@ export async function getEmbeddingsViaProxy(
 
 /**
  * Batch embeddings request - splits large arrays into smaller batches
- * 
+ *
  * @param proxyWorkerFetch - Fetch function
  * @param targetService - External service identifier
  * @param apiKey - User's API key
@@ -171,7 +171,7 @@ export async function getBatchEmbeddingsViaProxy(
   // Process texts in batches
   for (let i = 0; i < texts.length; i += batchSize) {
     const batch = texts.slice(i, i + batchSize);
-    
+
     const payload: EmbeddingRequestPayload = {
       input: batch,
       ...(model && { model })
@@ -197,7 +197,7 @@ export async function getBatchEmbeddingsViaProxy(
       const batchEmbeddings = result.data
         .sort((a, b) => a.index - b.index) // Ensure correct order
         .map(item => item.embedding);
-      
+
       embeddings.push(...batchEmbeddings);
     }
   }
@@ -214,7 +214,7 @@ export function isChatCompletionError(result: ChatCompletionResult): result is P
 
 /**
  * Get chat completion via the BYOK proxy worker
- * 
+ *
  * @param proxyWorkerFetch - Fetch function (global fetch or worker-specific)
  * @param targetService - External service identifier (e.g., 'openai_chat', 'anthropic_claude')
  * @param apiKey - User's API key for the external service
@@ -241,14 +241,14 @@ export async function getChatCompletionViaProxy(
 
     const response = await proxyWorkerFetch(proxyUrl, {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         target_service: targetService,
         api_key: apiKey,
-        payload: payload,
-      }),
+        payload: payload
+      })
     });
 
     if (!response.ok) {
@@ -296,4 +296,4 @@ export async function getChatCompletionViaProxy(
       }
     };
   }
-} 
+}

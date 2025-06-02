@@ -40,11 +40,11 @@ export async function getChunkMetadata(
 ): Promise<ChunkMetadata | null> {
   const key = generateChunkMetadataKey(projectId, chunkId);
   const value = await kv.get(key);
-  
+
   if (!value) {
     return null;
   }
-  
+
   try {
     return JSON.parse(value) as ChunkMetadata;
   } catch (error) {
@@ -76,11 +76,11 @@ export async function getFileChunkIndex(
 ): Promise<string[] | null> {
   const key = generateFileChunksKey(projectId, filePath);
   const value = await kv.get(key);
-  
+
   if (!value) {
     return null;
   }
-  
+
   try {
     return JSON.parse(value) as string[];
   } catch (error) {
@@ -98,10 +98,10 @@ export async function listProjectChunks(
 ): Promise<ChunkMetadata[]> {
   const prefix = `project:${projectId}:chunk:`;
   const chunks: ChunkMetadata[] = [];
-  
+
   try {
     const list = await kv.list({ prefix });
-    
+
     for (const key of list.keys) {
       const value = await kv.get(key.name);
       if (value) {
@@ -116,7 +116,7 @@ export async function listProjectChunks(
   } catch (error) {
     console.error(`Failed to list chunks for project ${projectId}:`, error);
   }
-  
+
   return chunks;
 }
 
@@ -128,14 +128,14 @@ export async function deleteProjectChunks(
   projectId: string
 ): Promise<void> {
   const prefix = `project:${projectId}:`;
-  
+
   try {
     const list = await kv.list({ prefix });
-    
+
     for (const key of list.keys) {
       await kv.delete(key.name);
     }
-    
+
     console.log(`Deleted ${list.keys.length} KV entries for project ${projectId}`);
   } catch (error) {
     console.error(`Failed to delete chunks for project ${projectId}:`, error);
@@ -176,11 +176,11 @@ export async function getPinnedItem(
 ): Promise<PinnedContextItem | null> {
   const key = generatePinnedItemKey(projectId, pinnedItemId);
   const value = await kv.get(key);
-  
+
   if (!value) {
     return null;
   }
-  
+
   try {
     return JSON.parse(value) as PinnedContextItem;
   } catch (error) {
@@ -198,10 +198,10 @@ export async function getPinnedItemsForProject(
 ): Promise<PinnedContextItem[]> {
   const prefix = `project:${projectId}:pinned_item:`;
   const items: PinnedContextItem[] = [];
-  
+
   try {
     const list = await kv.list({ prefix });
-    
+
     for (const key of list.keys) {
       const value = await kv.get(key.name);
       if (value) {
@@ -213,13 +213,13 @@ export async function getPinnedItemsForProject(
         }
       }
     }
-    
+
     // Sort by creation date (newest first)
     items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   } catch (error) {
     console.error(`Failed to list pinned items for project ${projectId}:`, error);
   }
-  
+
   return items;
 }
 
@@ -233,4 +233,4 @@ export async function deletePinnedItem(
 ): Promise<void> {
   const key = generatePinnedItemKey(projectId, pinnedItemId);
   await kv.delete(key);
-} 
+}

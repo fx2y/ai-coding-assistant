@@ -65,7 +65,7 @@ export async function executeReadFile(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`[ReadFileTool] Failed to read file:`, error);
-    
+
     return {
       tool_output: '',
       error: `Failed to read file ${args.file_path}: ${errorMessage}`
@@ -79,9 +79,9 @@ export async function executeReadFile(
 function formatFileContent(filePath: string, content: string): string {
   // Detect language from file extension for syntax highlighting
   const language = detectLanguageFromPath(filePath);
-  
+
   const header = `Content of file: **${filePath}**\n\n`;
-  
+
   const formattedContent = [
     '```' + language,
     content,
@@ -96,7 +96,7 @@ function formatFileContent(filePath: string, content: string): string {
  */
 function detectLanguageFromPath(filePath: string): string {
   const extension = filePath.split('.').pop()?.toLowerCase();
-  
+
   const languageMap: Record<string, string> = {
     'js': 'javascript',
     'jsx': 'javascript',
@@ -133,4 +133,4 @@ function detectLanguageFromPath(filePath: string): string {
   };
 
   return languageMap[extension || ''] || 'text';
-} 
+}

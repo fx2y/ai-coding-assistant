@@ -36,7 +36,7 @@ describe('retrievalService - Hydration (P1-E3-S2)', () => {
       data: [{ embedding: [0.1, 0.2, 0.3], index: 0 }],
       model: 'text-embedding-ada-002'
     };
-    
+
     mockGetEmbeddingsViaProxy.mockResolvedValue(mockEmbeddingResponse);
     mockIsEmbeddingError.mockReturnValue(false);
 
@@ -56,7 +56,7 @@ describe('retrievalService - Hydration (P1-E3-S2)', () => {
       ],
       count: 1
     };
-    
+
     mockQueryVectorsForProject.mockResolvedValue(mockVectorizeResults);
 
     // Setup mock environment with proper hydration data
@@ -97,7 +97,7 @@ describe('retrievalService - Hydration (P1-E3-S2)', () => {
     // Verify hydrated results
     expect(result.error).toBeUndefined();
     expect(result.results).toHaveLength(1);
-    
+
     const hydratedResult = result.results![0]!;
     expect(hydratedResult).toEqual({
       chunk_id: 'chunk-1',
@@ -121,7 +121,7 @@ describe('retrievalService - Hydration (P1-E3-S2)', () => {
       data: [{ embedding: [0.1, 0.2, 0.3], index: 0 }],
       model: 'text-embedding-ada-002'
     };
-    
+
     mockGetEmbeddingsViaProxy.mockResolvedValue(mockEmbeddingResponse);
     mockIsEmbeddingError.mockReturnValue(false);
 
@@ -135,7 +135,7 @@ describe('retrievalService - Hydration (P1-E3-S2)', () => {
       ],
       count: 1
     };
-    
+
     mockQueryVectorsForProject.mockResolvedValue(mockVectorizeResults);
 
     // Mock missing KV metadata
@@ -163,7 +163,7 @@ describe('retrievalService - Hydration (P1-E3-S2)', () => {
     // Should return empty results due to missing metadata
     expect(result.error).toBeUndefined();
     expect(result.results).toHaveLength(0);
-    
+
     // Verify KV was called but R2 was not
     expect(mockKVGet).toHaveBeenCalledWith(`project:${projectId}:chunk:chunk-missing`);
     expect(mockR2Get).not.toHaveBeenCalled();
@@ -175,7 +175,7 @@ describe('retrievalService - Hydration (P1-E3-S2)', () => {
       data: [{ embedding: [0.1, 0.2, 0.3], index: 0 }],
       model: 'text-embedding-ada-002'
     };
-    
+
     mockGetEmbeddingsViaProxy.mockResolvedValue(mockEmbeddingResponse);
     mockIsEmbeddingError.mockReturnValue(false);
 
@@ -189,7 +189,7 @@ describe('retrievalService - Hydration (P1-E3-S2)', () => {
       ],
       count: 1
     };
-    
+
     mockQueryVectorsForProject.mockResolvedValue(mockVectorizeResults);
 
     // Mock successful KV but missing R2
@@ -226,7 +226,7 @@ describe('retrievalService - Hydration (P1-E3-S2)', () => {
     // Should return empty results due to missing R2 text
     expect(result.error).toBeUndefined();
     expect(result.results).toHaveLength(0);
-    
+
     // Verify both KV and R2 were called
     expect(mockKVGet).toHaveBeenCalledWith(`project:${projectId}:chunk:chunk-1`);
     expect(mockR2Get).toHaveBeenCalledWith(mockChunkMeta.r2ChunkPath);
@@ -238,7 +238,7 @@ describe('retrievalService - Hydration (P1-E3-S2)', () => {
       data: [{ embedding: [0.1, 0.2, 0.3], index: 0 }],
       model: 'text-embedding-ada-002'
     };
-    
+
     mockGetEmbeddingsViaProxy.mockResolvedValue(mockEmbeddingResponse);
     mockIsEmbeddingError.mockReturnValue(false);
 
@@ -257,7 +257,7 @@ describe('retrievalService - Hydration (P1-E3-S2)', () => {
       ],
       count: 2
     };
-    
+
     mockQueryVectorsForProject.mockResolvedValue(mockVectorizeResults);
 
     // Mock successful hydration for first chunk, failure for second
@@ -300,14 +300,14 @@ describe('retrievalService - Hydration (P1-E3-S2)', () => {
     // Should return only the successfully hydrated result
     expect(result.error).toBeUndefined();
     expect(result.results).toHaveLength(1);
-    
+
     const hydratedResult = result.results![0]!;
     expect(hydratedResult.chunk_id).toBe('chunk-success');
     expect(hydratedResult.text_snippet).toBe(mockChunkText1);
     expect(hydratedResult.language).toBe('typescript');
-    
+
     // Verify both chunks were attempted
     expect(mockKVGet).toHaveBeenCalledTimes(2);
     expect(mockR2Get).toHaveBeenCalledTimes(1);
   });
-}); 
+});
