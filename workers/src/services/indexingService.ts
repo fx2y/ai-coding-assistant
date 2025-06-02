@@ -1,12 +1,14 @@
 /**
  * Indexing Service - Code Upload & Storage
  * Implements RFC-IDX-001: Codebase Indexing Pipeline (Step 1: Ingestion & Storage)
+ * Implements RFC-MOD-001: User-Configurable Model Routing
  */
 
 import JSZip from 'jszip';
 import type { ProcessZipResult, UploadedFile, ChunkingResult, ChunkMetadata, Env } from '../types.js';
 import { generateChunksForFile, validateChunk, DEFAULT_CHUNKING_CONFIG } from '../lib/textChunker.js';
 import { saveChunkMetadata, saveFileChunkIndex } from '../lib/kvStore.js';
+import { getModelConfigForTask } from './configService.js';
 
 /**
  * Determines content type based on file extension
@@ -389,12 +391,12 @@ export async function chunkFilesInProject(
 /**
  * Generates embeddings for all chunks in a project
  * Implements RFC-IDX-001: Embedding generation step (P1-E2-S1)
+ * Implements RFC-MOD-001: User-Configurable Model Routing
  */
 export async function generateEmbeddingsForProjectChunks(
   env: Env,
   projectId: string,
-  userEmbeddingApiKey: string,
-  embeddingModelConfig: import('../types.js').EmbeddingModelConfig
+  userEmbeddingApiKey: string
 ): Promise<import('../types.js').EmbeddingGenerationResult> {
   const startTime = Date.now();
   const errors: Array<{ chunkId: string; filePath: string; error: string }> = [];
@@ -406,10 +408,12 @@ export async function generateEmbeddingsForProjectChunks(
   const { saveChunkMetadata } = await import('../lib/kvStore.js');
 
   try {
+    // Get model configuration for embedding task (RFC-MOD-001)
+    const modelConfig = await getModelConfigForTask(env, projectId, 'embedding');
+    
     console.log(`Starting embedding generation for project ${projectId}`, {
-      service: embeddingModelConfig.service,
-      model: embeddingModelConfig.modelName,
-      batchSize: embeddingModelConfig.batchSize
+      service: modelConfig.service,
+      model: modelConfig.modelName
     });
 
     // Get proxy URL from environment or use default for local development
@@ -422,7 +426,7 @@ export async function generateEmbeddingsForProjectChunks(
     console.log(`Found ${chunkMetadataKeys.keys.length} chunks to process for project ${projectId}`);
 
     // Process chunks individually or in batches
-    const batchSize = embeddingModelConfig.batchSize || 20;
+    const batchSize = 20; // Default batch size
     const chunks: Array<{ metadata: import('../types.js').ChunkMetadata; text: string }> = [];
 
     // First, collect all chunk data
@@ -482,14 +486,14 @@ export async function generateEmbeddingsForProjectChunks(
         // Prepare embedding payload
         const embeddingPayload = {
           input: batchTexts,
-          ...(embeddingModelConfig.modelName && { model: embeddingModelConfig.modelName }),
-          ...(embeddingModelConfig.dimensions && { dimensions: embeddingModelConfig.dimensions })
+          ...(modelConfig.modelName && { model: modelConfig.modelName }),
+          ...(modelConfig.dimensions && { dimensions: modelConfig.dimensions })
         };
 
         // Call BYOK proxy for embeddings
         const embeddingResult = await getEmbeddingsViaProxy(
           fetch,
-          embeddingModelConfig.service,
+          modelConfig.service,
           userEmbeddingApiKey,
           embeddingPayload,
           proxyUrl

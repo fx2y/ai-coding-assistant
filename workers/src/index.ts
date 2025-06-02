@@ -18,6 +18,7 @@ import { getVectorizeInfo, testVectorizeQuery } from './handlers/debugHandlers.j
 import { handleVectorQuery } from './handlers/searchHandlers.js';
 import { handleManagedContextDemo, handleTokenCountDemo } from './handlers/contextHandlers.js';
 import { handleAgentReactStep, handleToolExecution, handleAgentResponseStream } from './handlers/agentHandlers.js';
+import { configApp } from './handlers/configHandlers.js';
 
 // Initialize Hono app with environment type
 const app = new Hono<{ Bindings: Env; Variables: { requestId: string } }>();
@@ -62,6 +63,9 @@ app.post('/api/project/:projectId/apply_diff', handleApplyDiff);
 app.post('/api/project/:projectId/pinned_context', handleAddPinnedItem);
 app.get('/api/project/:projectId/pinned_context', handleListPinnedItems);
 app.delete('/api/project/:projectId/pinned_context/:pinnedItemId', handleRemovePinnedItem);
+
+// Model preferences endpoints (P3-E3-S1, RFC-MOD-001)
+app.route('/api', configApp);
 
 // Search endpoints (P1-E3-S1)
 app.post('/api/search/vector_query', handleVectorQuery);

@@ -218,24 +218,19 @@ describe('handleEmbeddingGeneration', () => {
   it('should handle valid embedding generation request', async () => {
     const projectId = '123e4567-e89b-12d3-a456-426614174000';
     const requestBody = {
-      userEmbeddingApiKey: 'test-api-key',
-      embeddingModelConfig: {
-        service: 'openai_embedding',
-        modelName: 'text-embedding-ada-002',
-        batchSize: 20
-      }
+      userEmbeddingApiKey: 'test-api-key'
     };
 
     const mockResult = {
-      processedChunkCount: 5,
-      successfulEmbeddingCount: 5,
+      processedChunkCount: 10,
+      successfulEmbeddingCount: 10,
       errors: [],
-      totalProcessingTimeMs: 1000
+      totalProcessingTimeMs: 1500
     };
 
-    // Mock the service
+    // Mock the indexing service
     const indexingService = await import('../services/indexingService.js');
-    vi.mocked(indexingService.generateEmbeddingsForProjectChunks).mockResolvedValue(mockResult);
+    vi.spyOn(indexingService, 'generateEmbeddingsForProjectChunks').mockResolvedValue(mockResult);
 
     // Create mock context
     const mockContext = {
@@ -254,8 +249,7 @@ describe('handleEmbeddingGeneration', () => {
     expect(indexingService.generateEmbeddingsForProjectChunks).toHaveBeenCalledWith(
       mockEnv,
       projectId,
-      'test-api-key',
-      requestBody.embeddingModelConfig
+      'test-api-key'
     );
     expect(mockContext.json).toHaveBeenCalledWith(mockResult, 200);
   });
@@ -287,10 +281,7 @@ describe('handleEmbeddingGeneration', () => {
   it('should reject invalid request body', async () => {
     const projectId = '123e4567-e89b-12d3-a456-426614174000';
     const invalidRequestBody = {
-      userEmbeddingApiKey: '', // Invalid: empty string
-      embeddingModelConfig: {
-        service: 'invalid_service' // Invalid service
-      }
+      userEmbeddingApiKey: '' // Invalid: empty string
     };
 
     const mockContext = {
@@ -308,8 +299,8 @@ describe('handleEmbeddingGeneration', () => {
     expect(mockContext.json).toHaveBeenCalledWith(
       expect.objectContaining({
         error: 'BadRequest',
-        message: 'Invalid request format',
-        code: 'INVALID_REQUEST_FORMAT'
+        message: 'Missing or invalid userEmbeddingApiKey',
+        code: 'MISSING_EMBEDDING_API_KEY'
       }),
       400
     );

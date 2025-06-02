@@ -159,6 +159,7 @@ export async function handleProjectChunking(c: Context<{ Bindings: Env }>): Prom
  * Handles project embedding generation
  * POST /api/project/:projectId/generate_embeddings
  * Implements RFC-IDX-001: Embedding generation step (P1-E2-S1)
+ * Implements RFC-MOD-001: User-Configurable Model Routing
  */
 export async function handleEmbeddingGeneration(c: Context<{ Bindings: Env }>): Promise<Response> {
   try {
@@ -183,27 +184,20 @@ export async function handleEmbeddingGeneration(c: Context<{ Bindings: Env }>): 
       }, 400);
     }
 
-    // Parse and validate request body
+    // Parse and validate request body - now only requires the API key
     const body = await c.req.json();
-    const { EmbeddingGenerationRequestSchema } = await import('../types.js');
-    const validationResult = EmbeddingGenerationRequestSchema.safeParse(body);
-
-    if (!validationResult.success) {
+    
+    if (!body.userEmbeddingApiKey || typeof body.userEmbeddingApiKey !== 'string') {
       return c.json({
         error: 'BadRequest',
-        message: 'Invalid request format',
-        code: 'INVALID_REQUEST_FORMAT',
-        details: validationResult.error.flatten()
+        message: 'Missing or invalid userEmbeddingApiKey',
+        code: 'MISSING_EMBEDDING_API_KEY'
       }, 400);
     }
 
-    const { userEmbeddingApiKey, embeddingModelConfig } = validationResult.data;
+    const { userEmbeddingApiKey } = body;
 
-    console.log(`Starting embedding generation for project ${projectId}`, {
-      service: embeddingModelConfig.service,
-      model: embeddingModelConfig.modelName,
-      batchSize: embeddingModelConfig.batchSize
-    });
+    console.log(`Starting embedding generation for project ${projectId} using model preferences`);
 
     // Import and call the embedding generation service
     const { generateEmbeddingsForProjectChunks } = await import('../services/indexingService.js');
@@ -211,8 +205,7 @@ export async function handleEmbeddingGeneration(c: Context<{ Bindings: Env }>): 
     const result = await generateEmbeddingsForProjectChunks(
       c.env,
       projectId,
-      userEmbeddingApiKey,
-      embeddingModelConfig
+      userEmbeddingApiKey
     );
 
     // Log completion

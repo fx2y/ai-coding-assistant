@@ -2,6 +2,7 @@
  * Agent Service - ReAct Agent Core Loop Implementation
  * Implements RFC-AGT-001: ReAct Agent Core Loop
  * Implements RFC-AGT-004: Structured Prompting & Agent Control
+ * Implements RFC-MOD-001: User-Configurable Model Routing
  */
 
 import type {
@@ -11,15 +12,17 @@ import type {
   AgentTurn,
   ActionDetails,
   ChatMessage,
-  ChatCompletionRequest
+  ChatCompletionRequest,
+  VectorSearchResult
 } from '../types.js';
 import { buildManagedPromptContext } from './contextBuilderService.js';
 import { getChatCompletionViaProxy, isChatCompletionError } from '../lib/byokProxyClient.js';
 import { getModelConfig } from '../lib/tokenizer.js';
+import { getModelConfigForTask } from './configService.js';
 
 /**
  * Performs a single ReAct step: Reason (LLM generates thought + action)
- * Implements RFC-AGT-001 and RFC-AGT-004
+ * Implements RFC-AGT-001, RFC-AGT-004, and RFC-MOD-001
  */
 export async function performReActStep(
   env: Env,
@@ -35,12 +38,20 @@ export async function performReActStep(
       iterationsLeft: requestPayload.max_iterations_left
     });
 
-    // 1. Build Context-Rich Prompt for LLM
-    const llmConfig = getModelConfig(requestPayload.llm_config.modelName);
+    // 1. Get model configuration for agent reasoning task (RFC-MOD-001)
+    const modelConfig = await getModelConfigForTask(env, requestPayload.project_id, 'agent_reasoning');
+    
+    // Use configured model instead of the one passed in the request
+    const llmConfig = getModelConfig(modelConfig.modelName);
 
-    // Override with user-provided config
+    // Override with user-provided config for token limits
     llmConfig.tokenLimit = requestPayload.llm_config.tokenLimit;
     llmConfig.reservedOutputTokens = requestPayload.llm_config.reservedOutputTokens;
+
+    console.log(`[AgentService] Using model configuration for agent reasoning:`, {
+      service: modelConfig.service,
+      modelName: modelConfig.modelName
+    });
 
     const systemPrompt = buildReActSystemPrompt(requestPayload.available_tools_prompt_segment);
 
@@ -50,6 +61,18 @@ export async function performReActStep(
       implicitContext.last_focused_file_path = requestPayload.implicit_context.last_focused_file_path;
     }
 
+    // Fix vector search results type compatibility
+    const vectorSearchResults: VectorSearchResult[] = (requestPayload.vector_search_results_to_include || []).map(result => ({
+      chunk_id: result.chunk_id,
+      original_file_path: result.original_file_path,
+      start_line: result.start_line,
+      end_line: result.end_line ?? 0, // Provide default value for required field
+      score: result.score,
+      ...(result.text_snippet !== undefined && { text_snippet: result.text_snippet }),
+      ...(result.language !== undefined && { language: result.language }),
+      ...(result.metadata !== undefined && { metadata: result.metadata })
+    }));
+
     const contextResult = await buildManagedPromptContext(
       env,
       requestPayload.project_id,
@@ -57,8 +80,8 @@ export async function performReActStep(
       requestPayload.explicit_context_paths || [],
       requestPayload.pinned_item_ids_to_include || [],
       implicitContext,
-      requestPayload.vector_search_results_to_include || [],
-      requestPayload.conversation_history,
+      vectorSearchResults,
+      requestPayload.conversation_history as AgentTurn[],
       llmConfig
     );
 
@@ -80,20 +103,19 @@ export async function performReActStep(
       }
     ];
 
-    // 3. Call LLM via BYOK Proxy
+    // 3. Call LLM via BYOK Proxy using configured model
     const chatRequest: ChatCompletionRequest = {
-      model: requestPayload.llm_config.modelName,
+      model: modelConfig.modelName,
       messages,
       temperature: requestPayload.llm_config.temperature || 0.2,
       max_tokens: requestPayload.llm_config.reservedOutputTokens
     };
 
-    const targetService = determineTargetService(requestPayload.llm_config.modelName);
     const proxyUrl = '/api/proxy/external'; // Internal worker call
 
     const llmResult = await getChatCompletionViaProxy(
       fetch,
-      targetService,
+      modelConfig.service,
       requestPayload.user_api_keys.llmKey,
       chatRequest,
       proxyUrl
@@ -106,7 +128,7 @@ export async function performReActStep(
         thought: '',
         action_details: null,
         direct_response: null,
-        updated_conversation_history: requestPayload.conversation_history,
+        updated_conversation_history: requestPayload.conversation_history as AgentTurn[],
         iterations_remaining: requestPayload.max_iterations_left,
         status: 'error'
       };
@@ -121,7 +143,7 @@ export async function performReActStep(
         thought: 'No response received from LLM',
         action_details: null,
         direct_response: null,
-        updated_conversation_history: requestPayload.conversation_history,
+        updated_conversation_history: requestPayload.conversation_history as AgentTurn[],
         iterations_remaining: requestPayload.max_iterations_left,
         status: 'error'
       };
@@ -171,7 +193,7 @@ export async function performReActStep(
       newTurns.push(assistantTurn);
     }
 
-    const updatedHistory = [...requestPayload.conversation_history, ...newTurns];
+    const updatedHistory = [...(requestPayload.conversation_history as AgentTurn[]), ...newTurns];
 
     // 6. Prepare and Return Response
     const response: ReactStepResponse = {
@@ -201,7 +223,7 @@ export async function performReActStep(
       thought: '',
       action_details: null,
       direct_response: null,
-      updated_conversation_history: requestPayload.conversation_history,
+      updated_conversation_history: requestPayload.conversation_history as AgentTurn[],
       iterations_remaining: requestPayload.max_iterations_left,
       status: 'error'
     };

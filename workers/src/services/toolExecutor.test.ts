@@ -189,7 +189,7 @@ describe('Tool Executor Service', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.observation).toBe('Error: Unknown tool \'unknown_tool\'. Available tools: code_search, read_file');
+      expect(result.observation).toBe('Error: Unknown tool \'unknown_tool\'. Available tools: code_search, read_file, generate_code_edit');
     });
 
     it('should handle unexpected errors during tool execution', async () => {

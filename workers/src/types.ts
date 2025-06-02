@@ -672,3 +672,82 @@ export interface RerankingResult {
   success: boolean;
   error?: string;
 }
+
+// Model Preferences types (RFC-MOD-001, RFC-MOD-002)
+export type TaskType = 
+  | 'embedding'
+  | 'chat_general'
+  | 'code_generation'
+  | 're_ranking'
+  | 'agent_reasoning';
+
+export interface ModelConfig {
+  service: SupportedExternalService;
+  modelName: string;
+  dimensions?: number; // Optional dimensions for embedding models
+}
+
+export interface ModelPreferences {
+  embedding_config: ModelConfig;
+  chat_general_config: ModelConfig;
+  code_generation_config: ModelConfig;
+  re_ranking_config: ModelConfig;
+  agent_reasoning_config: ModelConfig;
+}
+
+// Zod schema for model preferences validation
+export const ModelConfigSchema = z.object({
+  service: z.enum([
+    'openai_chat',
+    'openai_embedding',
+    'anthropic_claude',
+    'jina_embedding',
+    'cohere_generate',
+    'cohere_embed'
+  ]),
+  modelName: z.string().min(1, 'Model name is required'),
+  dimensions: z.number().optional()
+});
+
+export const ModelPreferencesSchema = z.object({
+  embedding_config: ModelConfigSchema,
+  chat_general_config: ModelConfigSchema,
+  code_generation_config: ModelConfigSchema,
+  re_ranking_config: ModelConfigSchema,
+  agent_reasoning_config: ModelConfigSchema
+});
+
+export type ValidatedModelPreferences = z.infer<typeof ModelPreferencesSchema>;
+
+// Default model configurations
+export const DEFAULT_MODEL_PREFERENCES: ModelPreferences = {
+  embedding_config: {
+    service: 'openai_embedding',
+    modelName: 'text-embedding-ada-002'
+  },
+  chat_general_config: {
+    service: 'openai_chat',
+    modelName: 'gpt-3.5-turbo'
+  },
+  code_generation_config: {
+    service: 'openai_chat',
+    modelName: 'gpt-4'
+  },
+  re_ranking_config: {
+    service: 'openai_chat',
+    modelName: 'gpt-3.5-turbo'
+  },
+  agent_reasoning_config: {
+    service: 'openai_chat',
+    modelName: 'gpt-4'
+  }
+};
+
+// Task complexity hints (RFC-MOD-002)
+export type ComplexityTier = 'small_fast' | 'large_context_aware';
+
+export interface TaskComplexityHint {
+  taskType: TaskType;
+  suggestedTier: ComplexityTier;
+  reasoning: string;
+}
